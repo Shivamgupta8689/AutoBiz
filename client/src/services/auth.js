@@ -1,6 +1,4 @@
-import axios from 'axios';
+import api from './api';
 
-const API = '/api/auth';
-
-export const registerUser = (data) => axios.post(`${API}/register`, data);
-export const loginUser = (data) => axios.post(`${API}/login`, data);
+export const registerUser = (data) => api.post('/auth/register', data);
+export const loginUser = (data) => api.post('/auth/login', data);

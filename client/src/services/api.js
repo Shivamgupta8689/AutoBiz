@@ -1,6 +1,10 @@
 import axios from 'axios';
 
-const api = axios.create({ baseURL: '/api' });
+/** Production: set VITE_API_URL in Vercel (e.g. https://your-api.onrender.com). Dev: omit to use Vite /api proxy. */
+const apiRoot = import.meta.env.VITE_API_URL?.replace(/\/$/, '') || '';
+const api = axios.create({
+  baseURL: apiRoot ? `${apiRoot}/api` : '/api',
+});
 
 // Attach JWT token to every request
 api.interceptors.request.use((config) => {
