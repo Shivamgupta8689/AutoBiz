@@ -12,11 +12,11 @@
     "axios": "^1.7.2",
     "jspdf": "^2.5.1",
     "jspdf-autotable": "^3.8.2",
-    "qrcode.react": "^3.1.0",
+    "qrcode.react": "^3.2.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.23.1",
-    "recharts": "^2.12.7"
+    "recharts": "^2.15.4"
   },
   "devDependencies": {
     "@types/react": "^18.3.3",
