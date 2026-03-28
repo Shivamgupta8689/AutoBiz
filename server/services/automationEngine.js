@@ -6,6 +6,7 @@
 const Invoice = require('../models/Invoice');
 const User = require('../models/User');
 const Notification = require('../models/Notification');
+const { checkInventoryAndReorder } = require('./inventoryService');
 const { decideNotificationAction } = require('./reminderService');
 const { generateReminderMessage } = require('./geminiService');
 const { sendInvoiceEmail, sendReminderEmail } = require('./emailService');
@@ -211,4 +212,69 @@ const runSmartReminders = async (userId, language = 'Hinglish') => {
   return results;
 };
 
-module.exports = { handleInvoiceCreated, handlePaymentReceived, runSmartReminders, buildWhatsAppLink };
+// ─── Auto-runner (called by server.js setInterval) ───────────────────────────
+
+let _autoRunning = false; // prevent overlapping executions
+
+const autoRunAllUsers = async () => {
+  if (_autoRunning) {
+    console.log('[AUTO] Previous run still in progress — skipping this tick');
+    return;
+  }
+
+  _autoRunning = true;
+  const startedAt = Date.now();
+  console.log(`[AUTO] Starting scheduled reminder run — ${new Date().toISOString()}`);
+
+  try {
+    const users = await User.find({}, '_id busyMode').lean();
+
+    let totalSent = 0;
+    let totalSuppressed = 0;
+
+    for (const user of users) {
+      if (user.busyMode) {
+        console.log(`[AUTO] User ${user._id} — busy mode ON, skipping`);
+        continue;
+      }
+
+      // Check inventory and trigger reorders
+      try {
+        const reorders = await checkInventoryAndReorder(user._id);
+        if (reorders.length > 0) {
+          console.log(`[AUTO] Inventory reorders triggered for user ${user._id}: ${reorders.map(r => r.productName).join(', ')}`);
+        }
+      } catch (err) {
+        console.warn(`[AUTO] checkInventoryAndReorder failed for user ${user._id}: ${err.message}`);
+      }
+
+      let results;
+      try {
+        results = await runSmartReminders(user._id);
+      } catch (err) {
+        console.warn(`[AUTO] runSmartReminders failed for user ${user._id}: ${err.message}`);
+        continue;
+      }
+
+      for (const r of results) {
+        const tag = r.action === 'sent' || r.action === 'escalated' ? 'SEND' :
+                    r.action === 'suppressed' ? 'SUPPRESS' :
+                    r.action === 'delayed'    ? 'DELAY'    : r.action.toUpperCase();
+
+        console.log(`[AUTO] Invoice ${r.invoiceId} → ${tag} | ${r.customer?.name || 'unknown'} | priority: ${r.priority} | score: ${r.priorityScore}`);
+
+        if (tag === 'SEND' || tag === 'ESCALATE') totalSent++;
+        else totalSuppressed++;
+      }
+    }
+
+    const elapsed = ((Date.now() - startedAt) / 1000).toFixed(1);
+    console.log(`[AUTO] Run complete — ${totalSent} reminder(s) sent, ${totalSuppressed} suppressed/delayed — ${elapsed}s`);
+  } catch (err) {
+    console.error('[AUTO] Fatal error during auto-run:', err.message);
+  } finally {
+    _autoRunning = false;
+  }
+};
+
+module.exports = { handleInvoiceCreated, handlePaymentReceived, runSmartReminders, autoRunAllUsers, buildWhatsAppLink };

@@ -17,7 +17,7 @@ const notificationSchema = new mongoose.Schema({
   },
   type: {
     type: String,
-    enum: ['invoice_created', 'reminder_sent', 'payment_received', 'escalation'],
+    enum: ['invoice_created', 'reminder_sent', 'payment_received', 'escalation', 'purchase_created', 'reorder_triggered'],
     required: true,
   },
   invoiceId: {

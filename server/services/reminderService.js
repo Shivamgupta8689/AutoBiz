@@ -1,3 +1,5 @@
+const { calcRisk } = require('./riskService');
+
 /**
  * Evaluates a single invoice and returns a reminder decision.
  * @param {Object} invoice - Mongoose invoice document (with dueDate, status, lastReminderSent)
@@ -85,12 +87,13 @@ const calcPriorityScore = (invoice) => {
 /**
  * Context-aware notification decision.
  *
- * @param {Object} user     - Logged-in business owner (has lastActiveAt)
- * @param {Object} customer - Customer doc (has lastActiveAt, reminderIgnoreCount)
- * @param {Object} invoice  - Invoice doc (status, total, dueDate, ignoredCount)
- * @returns {{ action, reason, priority, priorityScore, nextSendTime, log }}
+ * @param {Object} user          - Logged-in business owner (has lastActiveAt)
+ * @param {Object} customer      - Customer doc (has lastActiveAt, reminderIgnoreCount)
+ * @param {Object} invoice       - Invoice doc (status, total, dueDate, ignoredCount)
+ * @param {Object} customerStats - Optional { latePayments: Number } for risk scoring
+ * @returns {{ action, reason, priority, priorityScore, riskScore, riskLevel, nextSendTime, log }}
  */
-const decideNotificationAction = (user, customer, invoice) => {
+const decideNotificationAction = (user, customer, invoice, customerStats = {}) => {
   const now = new Date();
 
   const daysOverdue = invoice.dueDate
@@ -99,6 +102,9 @@ const decideNotificationAction = (user, customer, invoice) => {
 
   const { priorityScore, priority } = calcPriorityScore(invoice);
 
+  // Risk scoring (predictive — uses customer history)
+  const { score: riskScore, level: riskLevel } = calcRisk(invoice, customerStats);
+
   // Rule 1: Paid → hard suppress
   if (invoice.status === 'paid') {
     return {
@@ -106,6 +112,8 @@ const decideNotificationAction = (user, customer, invoice) => {
       reason: 'Invoice already paid — no reminder needed',
       priority: 'none',
       priorityScore: 0,
+      riskScore,
+      riskLevel,
       nextSendTime: null,
       log: `[SUPPRESS] Invoice ${invoice.invoiceNumber} — already paid`,
     };
@@ -122,6 +130,8 @@ const decideNotificationAction = (user, customer, invoice) => {
       reason: 'User is currently active — will send in 5 minutes',
       priority,
       priorityScore,
+      riskScore,
+      riskLevel,
       nextSendTime: next,
       log: `[DELAY] Owner active ${Math.floor(ownerIdleMinutes)}m ago — holding notification`,
     };
@@ -135,6 +145,8 @@ const decideNotificationAction = (user, customer, invoice) => {
       reason: `Reminder ignored ${ignoredCount} times — escalating to urgent tone`,
       priority: 'high',
       priorityScore,
+      riskScore,
+      riskLevel,
       nextSendTime: null,
       log: `[ESCALATE] ${customer?.name} ignored ${ignoredCount} reminders — urgent escalation`,
     };
@@ -151,6 +163,8 @@ const decideNotificationAction = (user, customer, invoice) => {
       reason,
       priority: 'high',
       priorityScore,
+      riskScore,
+      riskLevel,
       nextSendTime: null,
       log: `[${daysOverdue > 7 ? 'ESCALATE' : 'SEND'}] ${reason}`,
     };
@@ -164,6 +178,8 @@ const decideNotificationAction = (user, customer, invoice) => {
       : 'Invoice due — sending friendly reminder',
     priority,
     priorityScore,
+    riskScore,
+    riskLevel,
     nextSendTime: null,
     log: `[SEND] ${customer?.name} — score ${priorityScore} (${priority})`,
   };

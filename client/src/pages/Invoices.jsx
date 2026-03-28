@@ -2,13 +2,19 @@ import { useEffect, useState, useRef } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { getInvoices, createInvoice, updateInvoiceStatus, deleteInvoice, getCustomers } from '../services/api';
+import { getInvoices, createInvoice, updateInvoiceStatus, deleteInvoice, getCustomers, simulatePayment } from '../services/api';
 import api from '../services/api';
 
 const STATUS_STYLES = {
   paid:    'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20',
   unpaid:  'bg-amber-500/15 text-amber-400 border border-amber-500/20',
   overdue: 'bg-red-500/15 text-red-400 border border-red-500/20',
+};
+
+const RISK_STYLES = {
+  low:    'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20',
+  medium: 'bg-amber-500/10 text-amber-400 border border-amber-500/20',
+  high:   'bg-red-500/10 text-red-400 border border-red-500/20',
 };
 
 const TABS = ['All', 'Unpaid', 'Overdue', 'Paid'];
@@ -126,6 +132,7 @@ export default function Invoices() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [qrInvoice, setQrInvoice] = useState(null);
+  const [simulatingId, setSimulatingId] = useState(null);
 
   // ── Voice input state ──────────────────────────────────────────────────────
   const [voiceState, setVoiceState] = useState('idle'); // idle | listening | parsing | done | error
@@ -256,6 +263,18 @@ export default function Invoices() {
       const { data } = await updateInvoiceStatus(id, status);
       setInvoices(p => p.map(i => i._id === id ? data : i));
     } catch { setError('Failed to update status'); }
+  };
+
+  const handleSimulatePayment = async (id) => {
+    setSimulatingId(id);
+    try {
+      const { data } = await simulatePayment(id);
+      setInvoices(p => p.map(i => i._id === id ? { ...i, status: 'paid' } : i));
+    } catch (err) {
+      setError(err.response?.data?.message || 'Payment simulation failed');
+    } finally {
+      setSimulatingId(null);
+    }
   };
 
   const handleDelete = async (id) => {
@@ -427,6 +446,11 @@ export default function Invoices() {
                     <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full ${STATUS_STYLES[inv.status]}`}>
                       {inv.status.charAt(0).toUpperCase() + inv.status.slice(1)}
                     </span>
+                    {inv.riskLevel && (
+                      <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full ${RISK_STYLES[inv.riskLevel] || RISK_STYLES.low}`}>
+                        {inv.riskLevel.charAt(0).toUpperCase() + inv.riskLevel.slice(1)} Risk
+                      </span>
+                    )}
                   </div>
                   <p className="font-semibold text-white">{inv.customerId?.name}
                     {inv.customerId?.businessName && <span className="text-gray-500 font-normal text-sm"> · {inv.customerId.businessName}</span>}
@@ -468,6 +492,15 @@ export default function Invoices() {
                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
                     PDF
                   </button>
+                  {inv.status !== 'paid' && (
+                    <button
+                      onClick={() => handleSimulatePayment(inv._id)}
+                      disabled={simulatingId === inv._id}
+                      className="flex items-center gap-1.5 bg-emerald-600/15 hover:bg-emerald-600/25 border border-emerald-500/30 hover:border-emerald-500/60 text-emerald-400 text-xs px-3 py-1.5 rounded-lg font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {simulatingId === inv._id ? '...' : '✓ Pay'}
+                    </button>
+                  )}
                   <button
                     onClick={() => handleDelete(inv._id)}
                     className="text-gray-600 hover:text-red-400 text-xs px-2 py-1.5 rounded-lg transition-all"

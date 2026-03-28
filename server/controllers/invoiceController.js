@@ -1,6 +1,11 @@
 const Invoice = require('../models/Invoice');
 const Customer = require('../models/Customer');
 const { handleInvoiceCreated, handlePaymentReceived } = require('../services/automationEngine');
+const { calcRisk } = require('../services/riskService');
+
+// Count past overdue invoices for a customer (used as latePayments proxy)
+const getLatePayments = (customerId) =>
+  Invoice.countDocuments({ customerId, status: 'overdue' });
 
 // Auto-generate invoice number: INV-YYYYMMDD-XXXX
 const generateInvoiceNumber = async () => {
@@ -40,6 +45,13 @@ const create = async (req, res) => {
     });
 
     const populated = await invoice.populate('customerId', 'name businessName phone email');
+
+    // Calculate and persist risk score
+    const latePayments = await getLatePayments(customerId);
+    const { score, level } = calcRisk(invoice, { latePayments });
+    await Invoice.findByIdAndUpdate(invoice._id, { riskScore: score, riskLevel: level });
+    populated.riskScore = score;
+    populated.riskLevel = level;
 
     // Fire automation: generate WhatsApp notification payload (non-blocking)
     const automationResult = handleInvoiceCreated(populated, populated.customerId);
@@ -89,12 +101,22 @@ const updateStatus = async (req, res) => {
       return res.json({ ...invoice.toObject(), automation: automationResult });
     }
 
-    const invoice = await Invoice.findOneAndUpdate(
+    let invoice = await Invoice.findOneAndUpdate(
       { _id: req.params.id, userId: req.user._id },
       { status },
       { new: true }
     ).populate('customerId', 'name businessName phone email');
     if (!invoice) return res.status(404).json({ message: 'Invoice not found' });
+
+    // Recalculate risk after status change
+    const latePayments = await getLatePayments(invoice.customerId._id);
+    const { score, level } = calcRisk(invoice, { latePayments });
+    invoice = await Invoice.findByIdAndUpdate(
+      invoice._id,
+      { riskScore: score, riskLevel: level },
+      { new: true }
+    ).populate('customerId', 'name businessName phone email');
+
     res.json(invoice);
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });

@@ -10,6 +10,8 @@ import Reminders from './pages/Reminders';
 import Analytics from './pages/Analytics';
 import Settings from './pages/Settings';
 import Notifications from './pages/Notifications';
+import RawMaterials from './pages/RawMaterials';
+import Inventory from './pages/Inventory';
 import About from './pages/About';
 
 export default function App() {
@@ -30,7 +32,9 @@ export default function App() {
           <Route path="/reminders" element={<Reminders />} />
           <Route path="/analytics"     element={<Analytics />} />
           <Route path="/notifications" element={<Notifications />} />
-          <Route path="/settings"      element={<Settings />} />
+          <Route path="/settings"        element={<Settings />} />
+          <Route path="/raw-materials"   element={<RawMaterials />} />
+          <Route path="/inventory"       element={<Inventory />} />
         </Route>
       </Routes>
     </AuthProvider>

@@ -1,162 +1,323 @@
 require('dotenv').config();
-const mongoose = require('mongoose');
-const bcrypt = require('bcryptjs');
+const mongoose  = require('mongoose');
+const bcrypt    = require('bcryptjs');
 
-const User     = require('./models/User');
-const Customer = require('./models/Customer');
-const Invoice  = require('./models/Invoice');
-const connectDB = require('./config/db');
+const User         = require('./models/User');
+const Customer     = require('./models/Customer');
+const Invoice      = require('./models/Invoice');
+const Notification = require('./models/Notification');
+const connectDB    = require('./config/db');
+const { calcRisk } = require('./services/riskService');
+
+// ── Date helpers ──────────────────────────────────────────────────────────────
+const now    = new Date();
+const ago    = (d) => new Date(now - d * 24 * 60 * 60 * 1000);   // d days ago
+const fwd    = (d) => new Date(now.getTime() + d * 24 * 60 * 60 * 1000); // d days ahead
+const hrsAgo = (h) => new Date(now - h * 60 * 60 * 1000);
+
+// ── Attach riskScore + riskLevel using calcRisk ───────────────────────────────
+const withRisk = (invoiceData, customerStats) => {
+  const { score, level } = calcRisk(invoiceData, customerStats);
+  return { ...invoiceData, riskScore: score, riskLevel: level };
+};
 
 const seed = async () => {
   await connectDB();
 
-  // ── Wipe existing demo data ──────────────────────────────────────────────
+  // ── Wipe existing demo data ───────────────────────────────────────────────
   const existing = await User.findOne({ email: 'demo@kirana.com' });
   if (existing) {
-    await Customer.deleteMany({ userId: existing._id });
     await Invoice.deleteMany({ userId: existing._id });
+    await Customer.deleteMany({ userId: existing._id });
+    await Notification.deleteMany({ userId: existing._id });
     await User.deleteOne({ _id: existing._id });
     console.log('Cleared existing demo data.');
   }
 
-  // ── Demo user ────────────────────────────────────────────────────────────
+  // ── Demo user ─────────────────────────────────────────────────────────────
   const hashed = await bcrypt.hash('demo1234', 10);
   const user = await User.create({
     name: 'Arjun Kirana',
     email: 'demo@kirana.com',
     password: hashed,
-    lastActiveAt: new Date(), // owner is "active" right now for demo
+    lastActiveAt: new Date(),
+    busyMode: false,
   });
   console.log('Created user:', user.email);
 
-  // ── 5 customers ──────────────────────────────────────────────────────────
+  // ── 5 customers ───────────────────────────────────────────────────────────
+  // reminderIgnoreCount reflects customer-side behaviour for risk context
   const [ramesh, priya, suresh, anita, ravi] = await Customer.insertMany([
-    { userId: user._id, name: 'Ramesh Sharma',  businessName: 'Sharma Kirana Store',  phone: '9876543210', email: 'ramesh@example.com' },
-    { userId: user._id, name: 'Priya Mehta',    businessName: 'Priya Traders',        phone: '9123456789', email: 'priya@example.com' },
-    { userId: user._id, name: 'Suresh Kumar',   businessName: 'Kumar General Store',  phone: '9988776655', email: 'suresh@example.com' },
-    { userId: user._id, name: 'Anita Joshi',    businessName: 'Joshi Medicals',       phone: '9765432100', email: 'anita@example.com' },
-    { userId: user._id, name: 'Ravi Gupta',     businessName: 'Gupta Electronics',    phone: '9654321098', email: 'ravi@example.com' },
+    {
+      userId: user._id,
+      name: 'Ramesh Sharma',
+      businessName: 'Sharma Kirana Store',
+      phone: '9876543210',
+      email: 'ramesh@example.com',
+      reminderIgnoreCount: 2,      // chronic late payer
+    },
+    {
+      userId: user._id,
+      name: 'Priya Mehta',
+      businessName: 'Priya Traders',
+      phone: '9123456789',
+      email: 'priya@example.com',
+      reminderIgnoreCount: 1,      // occasionally slow
+    },
+    {
+      userId: user._id,
+      name: 'Suresh Kumar',
+      businessName: 'Kumar General Store',
+      phone: '9988776655',
+      email: 'suresh@example.com',
+      reminderIgnoreCount: 0,      // reliable, big-ticket buyer
+    },
+    {
+      userId: user._id,
+      name: 'Anita Joshi',
+      businessName: 'Joshi Medicals',
+      phone: '9765432100',
+      email: 'anita@example.com',
+      reminderIgnoreCount: 0,      // pays on time
+    },
+    {
+      userId: user._id,
+      name: 'Ravi Gupta',
+      businessName: 'Gupta Electronics',
+      phone: '9654321098',
+      email: 'ravi@example.com',
+      reminderIgnoreCount: 1,      // growing account, some delays
+    },
   ]);
   console.log('Created 5 customers.');
 
-  const now     = new Date();
-  const ago     = (d) => new Date(now - d * 24 * 60 * 60 * 1000);
-  const from    = (d) => new Date(now.getTime() + d * 24 * 60 * 60 * 1000);
-  const hrsAgo  = (h) => new Date(now - h * 60 * 60 * 1000);
+  // ── Customer history passed to calcRisk (prior late-payment counts) ───────
+  // These represent each customer's historical overdue behaviour known at seed time.
+  const stats = {
+    ramesh: { latePayments: 2 },  // 2 prior overdue invoices
+    priya:  { latePayments: 1 },
+    suresh: { latePayments: 0 },
+    anita:  { latePayments: 0 },
+    ravi:   { latePayments: 2 },  // recent spate of delays
+  };
 
-  // ── 10 invoices ──────────────────────────────────────────────────────────
+  // ── 10 invoices ───────────────────────────────────────────────────────────
+  //
+  //  # │ Customer │ Status  │ Amount   │ Overdue │ ignored │ Risk
+  //  ──┼──────────┼─────────┼──────────┼─────────┼─────────┼────────
+  //  1 │ Ramesh   │ paid    │ ₹2,520   │ 5d ago  │ 0       │ low
+  //  2 │ Priya    │ paid    │ ₹1,260   │ 2d ago  │ 0       │ low
+  //  3 │ Suresh   │ paid    │ ₹23,600★ │ 3d ago  │ 0       │ low
+  //  4 │ Anita    │ paid    │ ₹4,480   │ 1d ago  │ 0       │ low
+  //  5 │ Ravi     │ unpaid  │ ₹8,260   │ due+3d  │ 0       │ low
+  //  6 │ Ramesh   │ overdue │ ₹4,032   │ 8d      │ 2 ✦     │ medium
+  //  7 │ Priya    │ overdue │ ₹20,160★ │ 12d     │ 3 ✦     │ HIGH
+  //  8 │ Suresh   │ overdue │ ₹14,160  │ 18d     │ 0       │ HIGH
+  //  9 │ Anita    │ unpaid  │ ₹10,640  │ due+5d  │ 0       │ low
+  // 10 │ Ravi     │ unpaid  │ ₹7,670   │ due+1d  │ 2 ✦     │ medium
+  //
+  //  ★ high-value (>₹20,000)   ✦ ignoredCount > 1
+
   await Invoice.insertMany([
 
-    // 1. PAID → SUPPRESS  (Ramesh - rice, already settled)
-    {
+    // ── 1. Ramesh — PAID | rice & dal settled ─────────────────────────────
+    withRisk({
       userId: user._id, customerId: ramesh._id,
-      invoiceNumber: 'INV-20240101-0001',
-      items: [{ name: 'Rice (50kg)', qty: 4, rate: 400 }, { name: 'Dal (10kg)', qty: 4, rate: 200 }],
+      invoiceNumber: 'INV-20260101-0001',
+      items: [
+        { name: 'Rice (50 kg)',  qty: 4, rate: 400 },
+        { name: 'Dal (10 kg)',   qty: 4, rate: 200 },
+      ],
       gstPercent: 5, subtotal: 2400, gstAmount: 120, total: 2520,
       status: 'paid', dueDate: ago(5),
       lastReminderSent: null, ignoredCount: 0,
-    },
+    }, stats.ramesh),
 
-    // 2. PAID → SUPPRESS  (Priya - sugar, paid quickly)
-    {
+    // ── 2. Priya — PAID | sugar, paid quickly ─────────────────────────────
+    withRisk({
       userId: user._id, customerId: priya._id,
-      invoiceNumber: 'INV-20240102-0002',
-      items: [{ name: 'Sugar (25kg)', qty: 5, rate: 240 }],
+      invoiceNumber: 'INV-20260101-0002',
+      items: [{ name: 'Sugar (25 kg)', qty: 5, rate: 240 }],
       gstPercent: 5, subtotal: 1200, gstAmount: 60, total: 1260,
       status: 'paid', dueDate: ago(2),
       lastReminderSent: null, ignoredCount: 0,
-    },
+    }, stats.priya),
 
-    // 3. UNPAID due today → SEND  (Suresh - grocery stock)
-    {
+    // ── 3. Suresh — PAID | HIGH-VALUE bulk appliances ★ ───────────────────
+    withRisk({
       userId: user._id, customerId: suresh._id,
-      invoiceNumber: 'INV-20240103-0003',
-      items: [{ name: 'Mixed Grocery Stock', qty: 1, rate: 5000 }],
-      gstPercent: 18, subtotal: 5000, gstAmount: 900, total: 5900,
-      status: 'unpaid', dueDate: from(0),
+      invoiceNumber: 'INV-20260102-0003',
+      items: [{ name: 'Bulk Appliances Stock', qty: 2, rate: 10000 }],
+      gstPercent: 18, subtotal: 20000, gstAmount: 3600, total: 23600,
+      status: 'paid', dueDate: ago(3),
       lastReminderSent: null, ignoredCount: 0,
-    },
+    }, stats.suresh),
 
-    // 4. UNPAID due today → SEND  (Anita - medicines)
-    {
+    // ── 4. Anita — PAID | medical supplies, on time ───────────────────────
+    withRisk({
       userId: user._id, customerId: anita._id,
-      invoiceNumber: 'INV-20240104-0004',
-      items: [{ name: 'OTC Medicines Batch', qty: 10, rate: 350 }],
-      gstPercent: 12, subtotal: 3500, gstAmount: 420, total: 3920,
-      status: 'unpaid', dueDate: from(0),
+      invoiceNumber: 'INV-20260102-0004',
+      items: [{ name: 'OTC Medicines Batch', qty: 10, rate: 400 }],
+      gstPercent: 12, subtotal: 4000, gstAmount: 480, total: 4480,
+      status: 'paid', dueDate: ago(1),
       lastReminderSent: null, ignoredCount: 0,
-    },
+    }, stats.anita),
 
-    // 5. OVERDUE 3 days, ignoredCount 1 → SEND (medium priority)  (Ramesh - oil)
-    {
-      userId: user._id, customerId: ramesh._id,
-      invoiceNumber: 'INV-20240105-0005',
-      items: [{ name: 'Cooking Oil (15L)', qty: 8, rate: 400 }],
-      gstPercent: 12, subtotal: 3200, gstAmount: 384, total: 3584,
-      status: 'overdue', dueDate: ago(3),
-      lastReminderSent: hrsAgo(50), ignoredCount: 1,
-    },
-
-    // 6. OVERDUE 5 days, ignoredCount 1 → SEND (medium priority)  (Priya - wholesale)
-    {
-      userId: user._id, customerId: priya._id,
-      invoiceNumber: 'INV-20240106-0006',
-      items: [{ name: 'Wholesale Goods', qty: 1, rate: 8500 }],
-      gstPercent: 18, subtotal: 8500, gstAmount: 1530, total: 10030,
-      status: 'overdue', dueDate: ago(5),
-      lastReminderSent: hrsAgo(55), ignoredCount: 1,
-    },
-
-    // 7. OVERDUE 4 days, ignoredCount 1 → SEND (medium priority)  (Ravi - electronics)
-    {
+    // ── 5. Ravi — UNPAID | accessories, due in 3 days ─────────────────────
+    withRisk({
       userId: user._id, customerId: ravi._id,
-      invoiceNumber: 'INV-20240107-0007',
-      items: [{ name: 'Mobile Accessories', qty: 20, rate: 500 }],
-      gstPercent: 18, subtotal: 10000, gstAmount: 1800, total: 11800,
-      status: 'overdue', dueDate: ago(4),
-      lastReminderSent: hrsAgo(60), ignoredCount: 1,
-    },
+      invoiceNumber: 'INV-20260103-0005',
+      items: [{ name: 'Mobile Accessories', qty: 20, rate: 350 }],
+      gstPercent: 18, subtotal: 7000, gstAmount: 1260, total: 8260,
+      status: 'unpaid', dueDate: fwd(3),
+      lastReminderSent: null, ignoredCount: 0,
+    }, stats.ravi),
 
-    // 8. OVERDUE 10 days, ignoredCount 3 → ESCALATE (ignored 3 times)  (Suresh)
-    {
-      userId: user._id, customerId: suresh._id,
-      invoiceNumber: 'INV-20240108-0008',
-      items: [{ name: 'Bulk Rice (100kg)', qty: 2, rate: 3500 }],
-      gstPercent: 5, subtotal: 7000, gstAmount: 350, total: 7350,
-      status: 'overdue', dueDate: ago(10),
-      lastReminderSent: hrsAgo(72), ignoredCount: 3,
-    },
+    // ── 6. Ramesh — OVERDUE 8d | ignoredCount=2 ✦ | medium risk ──────────
+    withRisk({
+      userId: user._id, customerId: ramesh._id,
+      invoiceNumber: 'INV-20260104-0006',
+      items: [{ name: 'Cooking Oil (15 L)', qty: 8, rate: 450 }],
+      gstPercent: 12, subtotal: 3600, gstAmount: 432, total: 4032,
+      status: 'overdue', dueDate: ago(8),
+      lastReminderSent: hrsAgo(55), ignoredCount: 2,
+    }, stats.ramesh),
 
-    // 9. OVERDUE 15 days, ignoredCount 3 → ESCALATE (overdue > 7 days)  (Anita)
-    {
-      userId: user._id, customerId: anita._id,
-      invoiceNumber: 'INV-20240109-0009',
-      items: [{ name: 'Surgical Supplies', qty: 5, rate: 2000 }],
-      gstPercent: 12, subtotal: 10000, gstAmount: 1200, total: 11200,
-      status: 'overdue', dueDate: ago(15),
-      lastReminderSent: hrsAgo(80), ignoredCount: 3,
-    },
-
-    // 10. OVERDUE 1 day, reminder sent 10 hours ago → SUPPRESS (48h rule)  (Priya)
-    {
+    // ── 7. Priya — OVERDUE 12d | HIGH-VALUE ★ | ignoredCount=3 ✦ | HIGH ──
+    withRisk({
       userId: user._id, customerId: priya._id,
-      invoiceNumber: 'INV-20240110-0010',
-      items: [{ name: 'Spices Assorted', qty: 30, rate: 180 }],
-      gstPercent: 5, subtotal: 5400, gstAmount: 270, total: 5670,
-      status: 'overdue', dueDate: ago(1),
-      lastReminderSent: hrsAgo(10), ignoredCount: 1,
-    },
+      invoiceNumber: 'INV-20260104-0007',
+      items: [{ name: 'Wholesale Textiles', qty: 1, rate: 18000 }],
+      gstPercent: 12, subtotal: 18000, gstAmount: 2160, total: 20160,
+      status: 'overdue', dueDate: ago(12),
+      lastReminderSent: hrsAgo(72), ignoredCount: 3,
+    }, stats.priya),
+
+    // ── 8. Suresh — OVERDUE 18d | no ignores | HIGH risk (>15d bracket) ──
+    withRisk({
+      userId: user._id, customerId: suresh._id,
+      invoiceNumber: 'INV-20260105-0008',
+      items: [{ name: 'Commercial Refrigerator', qty: 1, rate: 12000 }],
+      gstPercent: 18, subtotal: 12000, gstAmount: 2160, total: 14160,
+      status: 'overdue', dueDate: ago(18),
+      lastReminderSent: hrsAgo(96), ignoredCount: 0,
+    }, stats.suresh),
+
+    // ── 9. Anita — UNPAID | surgical supplies, due in 5 days ─────────────
+    withRisk({
+      userId: user._id, customerId: anita._id,
+      invoiceNumber: 'INV-20260105-0009',
+      items: [{ name: 'Surgical Supplies', qty: 5, rate: 1900 }],
+      gstPercent: 12, subtotal: 9500, gstAmount: 1140, total: 10640,
+      status: 'unpaid', dueDate: fwd(5),
+      lastReminderSent: null, ignoredCount: 0,
+    }, stats.anita),
+
+    // ── 10. Ravi — UNPAID | electronics, ignoredCount=2 ✦ | medium risk ──
+    withRisk({
+      userId: user._id, customerId: ravi._id,
+      invoiceNumber: 'INV-20260106-0010',
+      items: [
+        { name: 'Smartphone Cases',   qty: 50, rate: 100 },
+        { name: 'Screen Protectors',  qty: 50, rate:  30 },
+      ],
+      gstPercent: 18, subtotal: 6500, gstAmount: 1170, total: 7670,
+      status: 'unpaid', dueDate: fwd(1),
+      lastReminderSent: null, ignoredCount: 2,
+    }, stats.ravi),
+
   ]);
   console.log('Created 10 invoices.');
 
+  // ── Seed a few realistic notifications ───────────────────────────────────
+  const invoices = await Invoice.find({ userId: user._id }).sort({ createdAt: 1 });
+  const [inv1,,inv3,,,,inv7,inv8] = invoices; // paid ones + two high-risk
+
+  await Notification.insertMany([
+    {
+      userId: user._id,
+      title: `Invoice ${inv3.invoiceNumber} created`,
+      message: `New invoice of ₹${inv3.total.toLocaleString('en-IN')} created for Suresh Kumar. Due: ${ago(3).toLocaleDateString('en-IN')}.`,
+      type: 'invoice_created',
+      invoiceId: inv3._id,
+      customerId: suresh._id,
+      priority: 'low',
+      read: true,
+      createdAt: ago(3),
+    },
+    {
+      userId: user._id,
+      title: `Payment received — ${inv1.invoiceNumber}`,
+      message: `Ramesh Sharma paid ₹${inv1.total.toLocaleString('en-IN')} for invoice ${inv1.invoiceNumber}.`,
+      type: 'payment_received',
+      invoiceId: inv1._id,
+      customerId: ramesh._id,
+      priority: 'medium',
+      read: true,
+      createdAt: ago(4),
+    },
+    {
+      userId: user._id,
+      title: `Escalation sent — ${inv7.invoiceNumber}`,
+      message: `Urgent reminder sent to Priya Mehta for ₹${inv7.total.toLocaleString('en-IN')} (${inv7.invoiceNumber}) — ignored 3 times.`,
+      type: 'escalation',
+      invoiceId: inv7._id,
+      customerId: priya._id,
+      priority: 'high',
+      read: false,
+      createdAt: hrsAgo(72),
+    },
+    {
+      userId: user._id,
+      title: `Escalation sent — ${inv8.invoiceNumber}`,
+      message: `Urgent reminder sent to Suresh Kumar for ₹${inv8.total.toLocaleString('en-IN')} (${inv8.invoiceNumber}) — overdue 18 days.`,
+      type: 'escalation',
+      invoiceId: inv8._id,
+      customerId: suresh._id,
+      priority: 'high',
+      read: false,
+      createdAt: hrsAgo(96),
+    },
+  ]);
+  console.log('Created 4 seed notifications (2 unread escalations).');
+
+  // ── Summary ───────────────────────────────────────────────────────────────
+  const seededInvoices = await Invoice.find({ userId: user._id }).sort({ invoiceNumber: 1 });
+
   console.log('\n✓ Seed complete!');
-  console.log('  Login: demo@kirana.com / demo1234');
-  console.log('\n  Expected reminder decisions:');
-  console.log('  INV-0001, 0002  → SUPPRESS (paid)');
-  console.log('  INV-0003, 0004  → SEND     (due today)');
-  console.log('  INV-0005, 0006, 0007 → SEND (overdue 3-5d, medium priority)');
-  console.log('  INV-0008, 0009  → ESCALATE (ignored 3x / overdue >7d)');
-  console.log('  INV-0010        → SUPPRESS (reminded 10h ago)');
+  console.log('  Login: demo@kirana.com / demo1234\n');
+
+  console.log('  Invoice risk scores:');
+  seededInvoices.forEach(inv => {
+    const customer = [
+      [ramesh._id, 'Ramesh  '],
+      [priya._id,  'Priya   '],
+      [suresh._id, 'Suresh  '],
+      [anita._id,  'Anita   '],
+      [ravi._id,   'Ravi    '],
+    ].find(([id]) => id.equals(inv.customerId))?.[1] || '?       ';
+    console.log(
+      `  ${inv.invoiceNumber}  ${customer}  ` +
+      `₹${String(inv.total.toLocaleString('en-IN')).padStart(7)}  ` +
+      `${String(inv.status).padEnd(8)}  ` +
+      `risk: ${String(inv.riskScore).padStart(3)} (${inv.riskLevel})`
+    );
+  });
+
+  console.log('\n  Expected reminder engine decisions:');
+  console.log('  0001, 0002, 0003, 0004  → SUPPRESS  (paid)');
+  console.log('  0005, 0009             → SUPPRESS  (not due yet)');
+  console.log('  0006                   → SEND/ESCALATE  (overdue 8d, ignored 2x, medium risk)');
+  console.log('  0007                   → ESCALATE  (overdue 12d + high-value + ignored 3x, HIGH risk)');
+  console.log('  0008                   → ESCALATE  (overdue 18d, HIGH risk)');
+  console.log('  0010                   → SEND  (not overdue yet but ignored 2x, medium risk)');
+
+  console.log('\n  Analytics preview:');
+  console.log('  Top revenue: Suresh ₹37,760 | Priya ₹21,420 | Ravi ₹15,930 | Anita ₹15,120 | Ramesh ₹6,552');
+  console.log('  Paid: 4  |  Unpaid: 3  |  Overdue: 3');
+  console.log('  High-value invoices (>₹20k): 0003 (₹23,600), 0007 (₹20,160)');
+  console.log('  ignoredCount > 1: 0006 (×2), 0007 (×3), 0010 (×2)');
+
   process.exit(0);
 };
 

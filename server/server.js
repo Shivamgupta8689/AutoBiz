@@ -26,6 +26,16 @@ app.use('/api/analytics', require('./routes/analyticsRoutes'));
 app.use('/api/voice',          require('./routes/voiceRoutes'));
 app.use('/api/insights',       require('./routes/insightsRoutes'));
 app.use('/api/notifications',  require('./routes/notificationRoutes'));
+app.use('/api/payments',       require('./routes/paymentRoutes'));
+app.use('/api/raw-materials',  require('./routes/rawMaterialRoutes'));
+app.use('/api/inventory',      require('./routes/inventoryRoutes'));
+app.use('/api/suppliers',      require('./routes/supplierRoutes'));
+app.use('/api/ocr',            require('./routes/ocrRoutes'));
+
+// ─── Scheduled automation (every 60 seconds) ─────────────────────────────────
+const { autoRunAllUsers } = require('./services/automationEngine');
+autoRunAllUsers(); // run once immediately on startup
+setInterval(autoRunAllUsers, 60 * 1000);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

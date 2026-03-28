@@ -210,4 +210,62 @@ const sendReminderEmail = async (customer, invoice, aiMessage) => {
   return { sent: true, messageId: info.messageId };
 };
 
-module.exports = { sendInvoiceEmail, sendReminderEmail };
+// ─── sendReorderEmail ─────────────────────────────────────────────────────────
+
+/**
+ * Sends a reorder request email to the selected supplier.
+ */
+const sendReorderEmail = async (supplier, productName, reorderQty) => {
+  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+    console.log('[Email] EMAIL_USER/EMAIL_PASS not set — skipping reorder email');
+    return { skipped: true };
+  }
+  if (!supplier?.email) {
+    console.log(`[Email] No email for supplier ${supplier?.name} — skipping reorder`);
+    return { skipped: true };
+  }
+
+  const body = emailWrap(`
+    <tr>
+      <td style="padding:32px 32px 8px;">
+        <div style="display:inline-block;background:#14532d;color:#86efac;font-size:11px;font-weight:700;padding:4px 10px;border-radius:6px;margin-bottom:16px;letter-spacing:0.5px;">REORDER REQUEST</div>
+        <p style="color:#9ca3af;font-size:13px;margin:0 0 4px;">Hello ${supplier.name},</p>
+        <h2 style="color:#fff;font-size:20px;font-weight:700;margin:0 0 24px;">Stock reorder required</h2>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:0 32px 32px;">
+        <table width="100%" style="background:#1e1e1e;border-radius:12px;border:1px solid #2a2a2a;">
+          <tr><td style="padding:20px 24px;border-bottom:1px solid #2a2a2a;">
+            <table width="100%"><tr>
+              <td style="color:#9ca3af;font-size:12px;">Product</td>
+              <td align="right" style="color:#fff;font-size:14px;font-weight:600;">${productName}</td>
+            </tr></table>
+          </td></tr>
+          <tr><td style="padding:20px 24px;">
+            <table width="100%"><tr>
+              <td style="color:#9ca3af;font-size:12px;">Reorder Quantity</td>
+              <td align="right" style="color:#86efac;font-size:22px;font-weight:700;">${reorderQty} units</td>
+            </tr></table>
+          </td></tr>
+        </table>
+        <p style="color:#6b7280;font-size:12px;margin:16px 0 0;">
+          Please process this reorder at your earliest convenience. Kindly confirm via reply.
+        </p>
+      </td>
+    </tr>
+  `);
+
+  const transporter = getTransporter();
+  const info = await transporter.sendMail({
+    from: `"Smart Invoicing" <${process.env.EMAIL_USER}>`,
+    to: supplier.email,
+    subject: `Reorder Request — ${productName} (${reorderQty} units)`,
+    html: body,
+  });
+
+  console.log(`[Email] Reorder email sent to ${supplier.email} — messageId: ${info.messageId}`);
+  return { sent: true, messageId: info.messageId };
+};
+
+module.exports = { sendInvoiceEmail, sendReminderEmail, sendReorderEmail };

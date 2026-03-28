@@ -49,6 +49,15 @@ const invoiceSchema = new mongoose.Schema({
     type: Number,
     default: 0,
   },
+  riskScore: {
+    type: Number,
+    default: 0,
+  },
+  riskLevel: {
+    type: String,
+    enum: ['low', 'medium', 'high'],
+    default: 'low',
+  },
   createdAt: {
     type: Date,
     default: Date.now,

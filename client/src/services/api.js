@@ -30,6 +30,32 @@ export const createInvoice      = (data) => api.post('/invoices', data);
 export const updateInvoiceStatus = (id, status) => api.patch(`/invoices/${id}/status`, { status });
 export const deleteInvoice      = (id) => api.delete(`/invoices/${id}`);
 
+// Payments
+export const simulatePayment = (invoiceId) => api.post('/payments/webhook', { invoiceId });
+
+// Raw Materials
+export const getRawMaterials        = ()     => api.get('/raw-materials');
+export const createRawMaterial      = (data) => api.post('/raw-materials', data);
+export const getSupplierStats       = ()     => api.get('/raw-materials/analytics/suppliers');
+export const getMaterialAnalytics   = ()     => api.get('/raw-materials/analytics/materials');
+export const getGSTSummary          = ()     => api.get('/raw-materials/analytics/gst');
+export const getMonthlySpend        = ()     => api.get('/raw-materials/analytics/monthly');
+
+// Inventory
+export const getInventory     = ()          => api.get('/inventory');
+export const createInventory  = (data)      => api.post('/inventory', data);
+export const updateInventory  = (id, data)  => api.patch(`/inventory/${id}`, data);
+export const deleteInventory  = (id)        => api.delete(`/inventory/${id}`);
+
+// Suppliers
+export const getSuppliers     = ()     => api.get('/suppliers');
+export const createSupplier   = (data) => api.post('/suppliers', data);
+export const deleteSupplier   = (id)   => api.delete(`/suppliers/${id}`);
+
+// OCR
+export const scanBill = (formData) =>
+  api.post('/ocr/scan', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+
 // Notifications
 export const getNotifications     = () => api.get('/notifications');
 export const getUnreadCount       = () => api.get('/notifications/unread-count');
