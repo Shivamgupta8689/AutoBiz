@@ -55,7 +55,7 @@ export default function Login() {
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-400 mb-1.5">Password</label>
-              <input type="password" name="password" value={form.password} onChange={handleChange} required placeholder="••••••••" className={inputCls} />
+              <input type="password" name="password" value={form.password} onChange={handleChange} required placeholder="Enter password" className={inputCls} />
             </div>
             <button
               type="submit" disabled={loading}

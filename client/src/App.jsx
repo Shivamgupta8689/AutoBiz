@@ -1,5 +1,6 @@
 import { Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
+import { ThemeProvider } from './context/ThemeContext';
 import Layout from './components/Layout';
 import Landing from './pages/Landing';
 import Login from './pages/Login';
@@ -18,14 +19,14 @@ import About from './pages/About';
 export default function App() {
   return (
     <AuthProvider>
+      <ThemeProvider>
       <Routes>
         {/* Public */}
         <Route path="/"         element={<Landing />} />
         <Route path="/login"    element={<Login />} />
         <Route path="/register" element={<Register />} />
-        <Route path="/about"    element={<About />} />
 
-        {/* Protected — all share the sidebar Layout */}
+        {/* Protected — top nav + page ribbon */}
         <Route element={<Layout />}>
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/invoices"  element={<Invoices />} />
@@ -36,8 +37,10 @@ export default function App() {
           <Route path="/settings"        element={<Settings />} />
           <Route path="/raw-materials"   element={<RawMaterials />} />
           <Route path="/inventory"       element={<Inventory />} />
+          <Route path="/about"           element={<About />} />
         </Route>
       </Routes>
+      </ThemeProvider>
     </AuthProvider>
   );
 }

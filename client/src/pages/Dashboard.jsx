@@ -1,97 +1,71 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, Legend,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  BarChart,
+  Bar,
 } from 'recharts';
-import { getInvoices, getInsights, setBusyMode as syncBusyMode } from '../services/api';
+import {
+  getInvoices,
+  getInsights,
+  setBusyMode as syncBusyMode,
+  getCustomers,
+  getCustomerHealth,
+} from '../services/api';
+import InsightIcon from '../components/InsightIcon';
 import { Link } from 'react-router-dom';
-
-const STATUS_STYLES = {
-  paid:    'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20',
-  unpaid:  'bg-amber-500/15 text-amber-400 border border-amber-500/20',
-  overdue: 'bg-red-500/15 text-red-400 border border-red-500/20',
-};
-
-// Animated counter hook
-function useCountUp(target, duration = 900) {
-  const [val, setVal] = useState(0);
-  const raf = useRef();
-  useEffect(() => {
-    if (!target) { setVal(0); return; }
-    const start = performance.now();
-    const tick = (now) => {
-      const p = Math.min((now - start) / duration, 1);
-      const eased = 1 - Math.pow(1 - p, 3);
-      setVal(Math.floor(eased * target));
-      if (p < 1) raf.current = requestAnimationFrame(tick);
-    };
-    raf.current = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf.current);
-  }, [target, duration]);
-  return val;
-}
-
-function StatCard({ label, rawValue, prefix = '', suffix = '', icon, gradient, delay }) {
-  const numVal = typeof rawValue === 'number' ? rawValue : 0;
-  const animated = useCountUp(numVal);
-  const display = prefix + (numVal > 999
-    ? (animated / 1000).toFixed(animated >= 10000 ? 0 : 1) + 'k'
-    : animated
-  ) + suffix;
-
-  return (
-    <div
-      className={`relative rounded-2xl p-5 border border-[#232323] overflow-hidden group hover:border-indigo-500/40 hover:shadow-lg hover:shadow-indigo-500/5 animate-fadeSlideUp ${delay}`}
-      style={{ background: '#161616' }}
-    >
-      <div className={`absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 ${gradient}`} style={{ opacity: 0.04 }} />
-      <div className="flex items-start justify-between mb-4">
-        <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">{label}</p>
-        <span className="text-xl">{icon}</span>
-      </div>
-      <p className="text-3xl font-bold text-white tracking-tight">{display}</p>
-    </div>
-  );
-}
+import BizCard from '../components/ui/BizCard';
+import StatCard from '../components/ui/StatCard';
+import PageHeader from '../components/ui/PageHeader';
+import {
+  HiOutlineDocumentText,
+  HiOutlineUsers,
+  HiOutlineClock,
+  HiOutlineExclamationTriangle,
+} from 'react-icons/hi2';
 
 const CustomTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null;
   return (
-    <div className="bg-[#1e1e1e] border border-[#333] rounded-xl px-4 py-2.5 text-sm shadow-xl">
-      <p className="text-gray-400 mb-1">{label}</p>
-      <p className="text-indigo-400 font-bold">₹{Number(payload[0].value).toLocaleString('en-IN')}</p>
+    <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs shadow-lg dark:border-slate-600 dark:bg-slate-800">
+      <p className="mb-0.5 text-slate-500">{label}</p>
+      <p className="font-semibold text-slate-900 dark:text-slate-100">
+        ₹{Number(payload[0].value).toLocaleString('en-IN')}
+      </p>
     </div>
   );
 };
 
-const DonutTooltip = ({ active, payload }) => {
+const HealthTooltip = ({ active, payload }) => {
   if (!active || !payload?.length) return null;
   return (
-    <div className="bg-[#1e1e1e] border border-[#333] rounded-xl px-3 py-2 text-sm shadow-xl">
-      <p className="text-white font-medium">{payload[0].name}: {payload[0].value}</p>
+    <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs shadow-lg dark:border-slate-600 dark:bg-slate-800">
+      <p className="font-semibold text-slate-900 dark:text-slate-100">{payload[0].payload.name}</p>
+      <p className="text-slate-600 dark:text-slate-400">Health: {payload[0].value}</p>
     </div>
   );
 };
-
-const PIE_COLORS = ['#22c55e', '#f59e0b', '#ef4444'];
 
 export default function Dashboard() {
   const [invoices, setInvoices] = useState([]);
+  const [customerCount, setCustomerCount] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [lastRun, setLastRun] = useState(() => localStorage.getItem('lastReminderRun'));
-
-  // Busy mode — persisted in localStorage
+  const [lastRun] = useState(() => localStorage.getItem('lastReminderRun'));
   const [busyMode, setBusyMode] = useState(() => localStorage.getItem('busyMode') === 'true');
-
-  // AI Insights
   const [insights, setInsights] = useState([]);
   const [insightsLoading, setInsightsLoading] = useState(true);
+  const [healthChartData, setHealthChartData] = useState([]);
 
   const toggleBusyMode = () => {
     const next = !busyMode;
     setBusyMode(next);
     localStorage.setItem('busyMode', String(next));
-    syncBusyMode(next).catch(() => {}); // sync with backend (fire-and-forget)
+    syncBusyMode(next).catch(() => {});
   };
 
   useEffect(() => {
@@ -99,24 +73,61 @@ export default function Dashboard() {
       .then(({ data }) => setInvoices(data))
       .finally(() => setLoading(false));
 
+    getCustomers()
+      .then(({ data }) => setCustomerCount(data?.length ?? 0))
+      .catch(() => {});
+
     getInsights()
       .then(({ data }) => setInsights(data.insights || []))
       .catch(() => setInsights([]))
       .finally(() => setInsightsLoading(false));
   }, []);
 
-  // Stats
-  const totalBilled   = invoices.reduce((s, i) => s + i.total, 0);
-  const outstanding   = invoices.filter(i => i.status !== 'paid').reduce((s, i) => s + i.total, 0);
-  const overdueCount  = invoices.filter(i => i.status === 'overdue').length;
-  const paidThisMonth = invoices.filter(i => {
-    if (i.status !== 'paid') return false;
-    const d = new Date(i.createdAt);
-    const now = new Date();
-    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-  }).reduce((s, i) => s + i.total, 0);
+  useEffect(() => {
+    if (!invoices.length) {
+      setHealthChartData([]);
+      return;
+    }
+    const unpaidByCustomer = {};
+    invoices.forEach((inv) => {
+      if (inv.status === 'paid') return;
+      const id = inv.customerId?._id || inv.customerId;
+      const name = inv.customerId?.name || 'Unknown';
+      if (!id) return;
+      unpaidByCustomer[id] = unpaidByCustomer[id] || { name, total: 0 };
+      unpaidByCustomer[id].total += inv.total || 0;
+    });
+    const top = Object.entries(unpaidByCustomer)
+      .sort((a, b) => b[1].total - a[1].total)
+      .slice(0, 5)
+      .map(([cid, v]) => ({ id: cid, name: v.name, unpaid: v.total }));
 
-  // Line chart: last 30 days grouped by date
+    if (top.length === 0) {
+      getCustomers().then(({ data: custs }) => {
+        const slice = custs.slice(0, 5);
+        Promise.all(
+          slice.map((c) =>
+            getCustomerHealth(c._id)
+              .then(({ data: h }) => ({ name: c.name, score: h.score ?? 0 }))
+              .catch(() => ({ name: c.name, score: 0 }))
+          )
+        ).then((rows) => setHealthChartData(rows));
+      });
+      return;
+    }
+
+    Promise.all(
+      top.map(({ id, name }) =>
+        getCustomerHealth(id)
+          .then(({ data: h }) => ({ name, score: h.score ?? 0 }))
+          .catch(() => ({ name, score: 0 }))
+      )
+    ).then(setHealthChartData);
+  }, [invoices]);
+
+  const pendingCount = invoices.filter((i) => i.status !== 'paid').length;
+  const overdueCount = invoices.filter((i) => i.status === 'overdue').length;
+
   const chartData = (() => {
     const map = {};
     const now = new Date();
@@ -126,154 +137,168 @@ export default function Dashboard() {
       const key = d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
       map[key] = 0;
     }
-    invoices.forEach(inv => {
+    invoices.forEach((inv) => {
       const key = new Date(inv.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
       if (map[key] !== undefined) map[key] += inv.total;
     });
     return Object.entries(map).map(([date, amount]) => ({ date, amount }));
   })();
 
-  // Donut chart
-  const pieData = [
-    { name: 'Paid',    value: invoices.filter(i => i.status === 'paid').length },
-    { name: 'Unpaid',  value: invoices.filter(i => i.status === 'unpaid').length },
-    { name: 'Overdue', value: invoices.filter(i => i.status === 'overdue').length },
-  ].filter(d => d.value > 0);
-
-  // Last run display
   const lastRunText = lastRun
     ? (() => {
         const mins = Math.floor((Date.now() - Number(lastRun)) / 60000);
-        if (mins < 1) return 'just now';
-        if (mins < 60) return `${mins} min${mins > 1 ? 's' : ''} ago`;
+        if (mins < 1) return 'Just now';
+        if (mins < 60) return `${mins} min ago`;
         return `${Math.floor(mins / 60)}h ago`;
       })()
     : 'Never';
 
   return (
-    <main className="p-5 md:p-7 max-w-7xl mx-auto">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
-        <div>
-          <h1 className="text-2xl font-bold text-white">Dashboard</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Track invoices and business performance</p>
-        </div>
-        <div className="flex items-center gap-3">
-          {/* Busy Mode Toggle */}
-          <button
-            onClick={toggleBusyMode}
-            className={`inline-flex items-center gap-2 font-semibold px-4 py-2.5 rounded-xl text-sm transition-all border ${
-              busyMode
-                ? 'bg-orange-500/20 border-orange-500/50 text-orange-300'
-                : 'bg-[#161616] border-[#2a2a2a] text-gray-400 hover:border-[#444] hover:text-gray-200'
-            }`}
-          >
-            <span className={`w-2 h-2 rounded-full ${busyMode ? 'bg-orange-400 animate-pulse' : 'bg-gray-600'}`} />
-            Busy Mode {busyMode ? 'ON' : 'OFF'}
-          </button>
+    <main className="mx-auto max-w-[1600px] px-4 py-6 md:px-6">
+      <PageHeader
+        eyebrow="Operations"
+        description="Automation status, cash signals, and AI nudges — tuned for busy shop floors."
+        actions={
+          <>
+            <button
+              type="button"
+              onClick={toggleBusyMode}
+              className={`rounded-xl border px-4 py-2 text-xs font-bold shadow-sm transition hover:scale-[1.02] active:scale-[0.98] ${
+                busyMode
+                  ? 'border-amber-300 bg-amber-50 text-amber-950 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100'
+                  : 'border-slate-200 bg-white text-slate-800 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200'
+              }`}
+            >
+              Busy mode: {busyMode ? 'On' : 'Off'}
+            </button>
+            <Link
+              to="/reminders"
+              className="rounded-xl border border-transparent bg-gradient-to-r from-biz-accent to-blue-600 px-4 py-2 text-xs font-bold text-white shadow-md shadow-biz-accent/25 transition hover:opacity-95 active:scale-[0.98] dark:from-cyan-600 dark:to-blue-600"
+            >
+              Run smart reminders
+            </Link>
+          </>
+        }
+      />
 
-          <Link
-            to="/reminders"
-            className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-5 py-2.5 rounded-xl shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30 transition-all text-sm"
-          >
-            <span>⚡</span> Run Smart Reminders
-          </Link>
-        </div>
+      <div
+        className={`mb-6 flex flex-wrap items-center gap-3 rounded-xl border px-4 py-3 text-xs font-medium shadow-sm ${
+          busyMode
+            ? 'border-amber-200 bg-amber-50/90 text-amber-950 dark:border-amber-800 dark:bg-amber-950/25 dark:text-amber-100'
+            : 'border-emerald-200 bg-emerald-50/90 text-emerald-950 dark:border-emerald-900 dark:bg-emerald-950/25 dark:text-emerald-100'
+        }`}
+      >
+        <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${busyMode ? 'bg-amber-500' : 'bg-emerald-500'} animate-pulse`} />
+        <span>
+          Automation {busyMode ? 'paused' : 'active'} · Last reminder run: {lastRunText}
+        </span>
       </div>
 
-      {/* Busy mode warning banner */}
       {busyMode && (
-        <div className="flex items-center gap-3 bg-orange-500/10 border border-orange-500/30 rounded-xl px-4 py-3 mb-5">
-          <span className="text-orange-400 text-lg">⏸</span>
-          <div>
-            <p className="text-sm font-semibold text-orange-300">Busy Mode is ON — All reminders are paused</p>
-            <p className="text-xs text-orange-400/70 mt-0.5">Reminders will show as SUPPRESS until you turn this off.</p>
-          </div>
-          <button
-            onClick={toggleBusyMode}
-            className="ml-auto text-xs text-orange-400 hover:text-orange-200 font-medium border border-orange-500/30 px-3 py-1 rounded-lg transition-all"
-          >
-            Turn Off
+        <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 shadow-md dark:border-amber-800 dark:bg-amber-950/20 dark:text-amber-100">
+          Reminders are suppressed while busy mode is enabled.
+          <button type="button" onClick={toggleBusyMode} className="ml-2 font-bold underline decoration-2">
+            Turn off
           </button>
         </div>
       )}
 
-      {/* Automation status bar */}
-      <div className={`flex items-center gap-3 rounded-xl px-4 py-2.5 mb-7 ${
-        busyMode
-          ? 'bg-orange-950/30 border border-orange-900/40'
-          : 'bg-[#0d1a0d] border border-emerald-900/50'
-      }`}>
-        <span className="relative flex h-2 w-2">
-          <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${busyMode ? 'bg-orange-400' : 'bg-emerald-400'}`} />
-          <span className={`relative inline-flex rounded-full h-2 w-2 ${busyMode ? 'bg-orange-500' : 'bg-emerald-500'}`} />
-        </span>
-        <p className={`text-xs font-medium ${busyMode ? 'text-orange-400' : 'text-emerald-400'}`}>
-          Auto-reminder engine: <span className="font-bold">{busyMode ? 'PAUSED' : 'ACTIVE'}</span>
-          <span className={`ml-2 ${busyMode ? 'text-orange-600' : 'text-emerald-600'}`}>— Last run: {lastRunText}</span>
-        </p>
-        <div className="ml-auto text-xs text-gray-600">Rules: SUPPRESS · DELAY · SEND · ESCALATE</div>
-      </div>
-
-      {/* Stat cards */}
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-7">
+      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {loading ? (
-          Array(4).fill(0).map((_, i) => (
-            <div key={i} className="rounded-2xl bg-[#161616] border border-[#232323] h-28 animate-pulse" />
+          [1, 2, 3, 4].map((i) => (
+            <div key={i} className="h-28 animate-pulse rounded-xl bg-slate-200/80 dark:bg-slate-800" />
           ))
         ) : (
           <>
-            <StatCard label="Total Invoices"   rawValue={invoices.length}   icon="🧾" gradient="bg-indigo-500" delay="delay-100" />
-            <StatCard label="Outstanding"      rawValue={Math.round(outstanding / 100) * 100} prefix="₹" icon="⏳" gradient="bg-amber-500" delay="delay-200" />
-            <StatCard label="Overdue"          rawValue={overdueCount}      icon="🚨" gradient="bg-red-500"   delay="delay-300" />
-            <StatCard label="Paid This Month"  rawValue={Math.round(paidThisMonth / 100) * 100} prefix="₹" icon="✅" gradient="bg-emerald-500" delay="delay-400" />
+            <StatCard
+              label="Total invoices"
+              value={String(invoices.length)}
+              sub="All time"
+              icon={HiOutlineDocumentText}
+              accent="default"
+            />
+            <StatCard
+              label="Customers"
+              value={String(customerCount)}
+              sub="On file"
+              icon={HiOutlineUsers}
+              accent="violet"
+            />
+            <StatCard
+              label="Pending collection"
+              value={String(pendingCount)}
+              sub="Unpaid pipeline"
+              icon={HiOutlineClock}
+              accent="warning"
+            />
+            <StatCard
+              label="Overdue"
+              value={String(overdueCount)}
+              sub="Needs attention"
+              icon={HiOutlineExclamationTriangle}
+              accent="danger"
+            />
           </>
         )}
       </div>
 
-      {/* Charts row */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-7">
-        <div className="lg:col-span-2 bg-[#161616] border border-[#232323] rounded-2xl p-5">
-          <p className="text-sm font-semibold text-white mb-1">Invoice Volume — Last 30 Days</p>
-          <p className="text-xs text-gray-500 mb-4">Total billed per day</p>
-          <ResponsiveContainer width="100%" height={200}>
-            <LineChart data={chartData} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#222" />
-              <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#666' }} interval={4} tickLine={false} axisLine={false} />
-              <YAxis tick={{ fontSize: 10, fill: '#666' }} tickLine={false} axisLine={false} tickFormatter={v => v > 0 ? `₹${v/1000}k` : '₹0'} width={45} />
+      <div className="mb-6 grid grid-cols-1 gap-5 lg:grid-cols-2">
+        <BizCard title="Payments trend" subtitle="Invoice amount booked per day · last 30 days">
+          <ResponsiveContainer width="100%" height={240}>
+            <LineChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-slate-200 dark:stroke-slate-700" />
+              <XAxis dataKey="date" tick={{ fontSize: 10 }} interval={4} tickLine={false} axisLine={false} />
+              <YAxis
+                tick={{ fontSize: 10 }}
+                tickLine={false}
+                axisLine={false}
+                width={48}
+                tickFormatter={(v) => (v >= 1000 ? `₹${v / 1000}k` : `₹${v}`)}
+              />
               <Tooltip content={<CustomTooltip />} />
-              <Line type="monotone" dataKey="amount" stroke="#6366f1" strokeWidth={2.5} dot={false} activeDot={{ r: 5, fill: '#6366f1', strokeWidth: 0 }} />
+              <Line
+                type="monotone"
+                dataKey="amount"
+                stroke="#2563eb"
+                strokeWidth={2}
+                dot={false}
+                activeDot={{ r: 5, fill: '#2563eb' }}
+              />
             </LineChart>
           </ResponsiveContainer>
-        </div>
+        </BizCard>
 
-        <div className="bg-[#161616] border border-[#232323] rounded-2xl p-5 flex flex-col">
-          <p className="text-sm font-semibold text-white mb-1">Invoice Status</p>
-          <p className="text-xs text-gray-500 mb-3">Distribution by status</p>
-          {pieData.length === 0 ? (
-            <div className="flex-1 flex items-center justify-center text-gray-600 text-sm">No data yet</div>
+        <BizCard title="Customer health score" subtitle="Top accounts by exposure (0–100)">
+          {healthChartData.length === 0 ? (
+            <div className="flex h-[240px] items-center justify-center text-sm text-slate-500">No data yet</div>
           ) : (
-            <div className="flex-1">
-              <ResponsiveContainer width="100%" height={200}>
-                <PieChart>
-                  <Pie data={pieData} cx="50%" cy="45%" innerRadius={55} outerRadius={80} paddingAngle={3} dataKey="value">
-                    {pieData.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % 3]} stroke="transparent" />)}
-                  </Pie>
-                  <Tooltip content={<DonutTooltip />} />
-                  <Legend iconType="circle" iconSize={8} />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
+            <ResponsiveContainer width="100%" height={240}>
+              <BarChart data={healthChartData} layout="vertical" margin={{ top: 8, right: 16, left: 8, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" horizontal={false} className="stroke-slate-200 dark:stroke-slate-700" />
+                <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
+                <YAxis
+                  type="category"
+                  dataKey="name"
+                  width={100}
+                  tick={{ fontSize: 10 }}
+                  tickLine={false}
+                  axisLine={false}
+                />
+                <Tooltip content={<HealthTooltip />} />
+                <Bar dataKey="score" fill="#64748b" radius={[0, 6, 6, 0]} className="dark:fill-slate-500" />
+              </BarChart>
+            </ResponsiveContainer>
           )}
-        </div>
+        </BizCard>
       </div>
 
-      {/* AI Insights */}
-      <div className="mb-7">
-        <div className="flex items-center gap-2 mb-4">
-          <h2 className="text-base font-semibold text-white">AI Insights</h2>
-          <span className="text-xs text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 px-2 py-0.5 rounded-full">Gemini</span>
+      <BizCard
+        className="mb-6"
+        title="Business insights"
+        subtitle="Gemini-generated focus areas"
+        actions={
           <button
+            type="button"
             onClick={() => {
               setInsightsLoading(true);
               getInsights()
@@ -281,93 +306,89 @@ export default function Dashboard() {
                 .catch(() => setInsights([]))
                 .finally(() => setInsightsLoading(false));
             }}
-            className="ml-auto text-xs text-gray-500 hover:text-gray-300 border border-[#2a2a2a] hover:border-[#444] px-3 py-1 rounded-lg transition-all"
+            className="rounded-lg text-xs font-bold text-biz-accent hover:underline dark:text-cyan-400"
           >
-            ↻ Refresh
+            Refresh
           </button>
-        </div>
+        }
+      >
         {insightsLoading ? (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {[1,2,3].map(i => <div key={i} className="h-24 bg-[#161616] border border-[#232323] rounded-2xl animate-pulse" />)}
-          </div>
+          <p className="text-sm text-slate-500">Loading…</p>
         ) : insights.length === 0 ? (
-          <div className="bg-[#161616] border border-[#232323] rounded-2xl px-5 py-4 text-sm text-gray-500">
-            No insights available yet. Add more invoices to see AI analysis.
-          </div>
+          <p className="text-sm text-slate-500">Add invoices to generate insights.</p>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             {insights.map((insight, i) => {
-              // Support both string (legacy) and {icon, title, insight} object
-              const icon  = insight?.icon  || '💡';
+              const icon = insight?.icon;
               const title = insight?.title || `Insight ${i + 1}`;
-              const text  = insight?.insight || (typeof insight === 'string' ? insight : '');
+              const text = insight?.insight || (typeof insight === 'string' ? insight : '');
               return (
                 <div
                   key={i}
-                  className="bg-[#161616] border border-indigo-900/30 hover:border-indigo-500/40 rounded-2xl p-5 transition-all"
+                  className="flex gap-3 rounded-xl border border-slate-100 bg-slate-50/80 p-4 shadow-sm transition hover:border-biz-accent/30 hover:shadow-md dark:border-slate-800 dark:bg-slate-800/40"
                 >
-                  <div className="flex items-center gap-2 mb-3">
-                    <span className="text-xl">{icon}</span>
-                    <p className="text-sm font-semibold text-white">{title}</p>
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white shadow dark:bg-slate-900">
+                    <InsightIcon value={icon} className="h-5 w-5 text-biz-accent dark:text-cyan-400" />
                   </div>
-                  <p className="text-sm text-gray-400 leading-relaxed">{text}</p>
-                  <p className="text-[10px] text-indigo-600 mt-3 font-medium uppercase tracking-wider">Gemini AI</p>
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold text-slate-900 dark:text-white">{title}</p>
+                    <p className="mt-1 text-xs leading-relaxed text-slate-600 dark:text-slate-400">{text}</p>
+                  </div>
                 </div>
               );
             })}
           </div>
         )}
-      </div>
+      </BizCard>
 
-      {/* Recent invoices */}
-      <div className="bg-[#161616] border border-[#232323] rounded-2xl overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[#232323]">
-          <p className="text-sm font-semibold text-white">Recent Invoices</p>
-          <Link to="/invoices" className="text-xs text-indigo-400 hover:text-indigo-300">View all →</Link>
-        </div>
-
+      <BizCard
+        title="Recent invoices"
+        subtitle="Swipe on mobile — full register in Invoices"
+        actions={
+          <Link to="/invoices" className="text-xs font-bold text-biz-accent dark:text-cyan-400">
+            View all
+          </Link>
+        }
+      >
         {loading ? (
-          <div className="p-6 space-y-3">
-            {[1,2,3].map(i => <div key={i} className="h-10 bg-[#1e1e1e] rounded-lg animate-pulse" />)}
-          </div>
+          <p className="text-sm text-slate-500">Loading…</p>
         ) : invoices.length === 0 ? (
-          <div className="p-10 text-center">
-            <p className="text-2xl mb-2">🧾</p>
-            <p className="text-gray-500 text-sm">No invoices yet.</p>
-            <Link to="/invoices" className="text-indigo-400 hover:underline text-xs mt-1 inline-block">Create your first invoice →</Link>
-          </div>
+          <p className="py-6 text-center text-sm text-slate-500">No invoices yet.</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm min-w-[550px]">
-              <thead>
-                <tr className="text-[11px] text-gray-500 uppercase tracking-wider border-b border-[#232323]">
-                  {['Invoice #', 'Customer', 'Amount', 'Due', 'Status'].map(h => (
-                    <th key={h} className="text-left px-5 py-3 font-medium">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {invoices.slice(0, 6).map((inv, i) => (
-                  <tr key={inv._id} className={`hover:bg-[#1c1c1c] transition-colors ${i < invoices.slice(0,6).length - 1 ? 'border-b border-[#1e1e1e]' : ''}`}>
-                    <td className="px-5 py-3.5 font-mono text-xs text-gray-400">{inv.invoiceNumber}</td>
-                    <td className="px-5 py-3.5">
-                      <div className="font-medium text-white text-sm">{inv.customerId?.name}</div>
-                      {inv.customerId?.businessName && <div className="text-[11px] text-gray-500">{inv.customerId.businessName}</div>}
-                    </td>
-                    <td className="px-5 py-3.5 font-semibold text-white">₹{inv.total?.toLocaleString('en-IN')}</td>
-                    <td className="px-5 py-3.5 text-gray-400 text-xs whitespace-nowrap">{new Date(inv.dueDate).toLocaleDateString('en-IN')}</td>
-                    <td className="px-5 py-3.5">
-                      <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full ${STATUS_STYLES[inv.status]}`}>
-                        {inv.status.charAt(0).toUpperCase() + inv.status.slice(1)}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="-mx-1 flex gap-3 overflow-x-auto pb-2 pt-1 nav-scroll-hide">
+            {invoices.slice(0, 10).map((inv) => (
+              <div
+                key={inv._id}
+                className="w-[min(100%,260px)] shrink-0 rounded-xl border border-slate-100 bg-gradient-to-br from-white to-slate-50/90 p-4 shadow-md ring-1 ring-slate-200/60 dark:border-slate-700 dark:from-slate-900 dark:to-biz-slate dark:ring-slate-700"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <p className="font-mono text-xs text-slate-500 dark:text-slate-400">{inv.invoiceNumber}</p>
+                  <span
+                    className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
+                      inv.status === 'paid'
+                        ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                        : inv.status === 'overdue'
+                          ? 'bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300'
+                          : 'bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200'
+                    }`}
+                  >
+                    {inv.status}
+                  </span>
+                </div>
+                <p className="mt-2 truncate text-sm font-bold text-slate-900 dark:text-white">
+                  {inv.customerId?.name || '—'}
+                </p>
+                <p className="mt-2 text-2xl font-bold tabular-nums text-biz-navy dark:text-white">
+                  ₹{inv.total?.toLocaleString('en-IN')}
+                </p>
+                <p className="mt-1 text-[11px] text-slate-500">
+                  Due {new Date(inv.dueDate).toLocaleDateString('en-IN')}
+                </p>
+              </div>
+            ))}
           </div>
         )}
-      </div>
+      </BizCard>
     </main>
   );
 }

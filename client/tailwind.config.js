@@ -1,8 +1,31 @@
 /** @type {import('tailwindcss').Config} */
 export default {
+  darkMode: 'class',
   content: ['./index.html', './src/**/*.{js,jsx,ts,tsx}'],
   theme: {
     extend: {
+      fontFamily: {
+        sans: ['Inter', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'sans-serif'],
+      },
+      colors: {
+        biz: {
+          navy:        '#0c1222',
+          slate:       '#1e293b',
+          surface:     '#f0f4ff',   // ← was 'biz-surface' (duplicate removed)
+          surfaceDark: '#0f172a',   // ← was 'biz-navy' (duplicate removed)
+          border:      '#e2e8f0',
+          borderDark:  '#334155',
+          accent:      '#2563eb',
+          accentSoft:  '#dbeafe',
+          accentHover: '#1d4ed8',
+          muted:       '#64748b',
+          glow:        '#22d3ee',
+        },
+      },
+      boxShadow: {
+        'biz': '0 4px 24px -4px rgba(15, 23, 42, 0.12), 0 8px 32px -8px rgba(37, 99, 235, 0.08)',
+        'biz-dark': '0 4px 32px -4px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(34, 211, 238, 0.06)',
+      },
       animation: {
         'float-slow': 'float3d 7s ease-in-out infinite',
         'float-mid': 'float3d 5.5s ease-in-out infinite',

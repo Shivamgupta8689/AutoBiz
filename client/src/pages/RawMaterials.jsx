@@ -8,6 +8,10 @@ import {
   getSupplierStats, getMaterialAnalytics,
   getGSTSummary, getMonthlySpend,
 } from '../services/api';
+import BizCard from '../components/ui/BizCard';
+import StatCard from '../components/ui/StatCard';
+import PageHeader from '../components/ui/PageHeader';
+import { HiOutlineBanknotes, HiOutlineCalculator, HiOutlineReceiptPercent, HiOutlineBuildingStorefront } from 'react-icons/hi2';
 
 const EMPTY_FORM = {
   materialName: '',
@@ -22,26 +26,6 @@ const GST_OPTIONS = [0, 5, 12, 18, 28];
 
 const fmt = (n) =>
   `₹${Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-
-// ─── Stat Card ────────────────────────────────────────────────────────────────
-
-function StatCard({ label, value, sub }) {
-  return (
-    <div className="bg-[#111] border border-[#232323] rounded-2xl px-5 py-4">
-      <p className="text-xs text-gray-500 mb-1">{label}</p>
-      <p className="text-xl font-bold text-white">{value}</p>
-      {sub && <p className="text-[11px] text-gray-600 mt-0.5">{sub}</p>}
-    </div>
-  );
-}
-
-// ─── Section heading ──────────────────────────────────────────────────────────
-
-function SectionHeading({ children }) {
-  return (
-    <h2 className="text-sm font-semibold text-gray-300 mb-3">{children}</h2>
-  );
-}
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
@@ -117,43 +101,53 @@ export default function RawMaterials() {
   const topMaterial = matAnalytics[0]?.materialName || '—';
   const topSupplier = suppliers[0]?.supplierName    || '—';
 
+  const inputCls =
+    'w-full rounded border border-slate-200 bg-white px-3 py-2 text-sm focus:border-blue-700 focus:outline-none focus:ring-1 focus:ring-blue-700 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:focus:border-blue-500';
+
   return (
-    <div className="p-6 space-y-8 max-w-6xl mx-auto">
-      {/* ── Header ── */}
-      <div>
-        <h1 className="text-2xl font-bold text-white">Raw Materials</h1>
-        <p className="text-sm text-gray-500 mt-1">Track purchases, GST, and supplier analytics.</p>
-      </div>
+    <main className="mx-auto max-w-[1600px] space-y-6 px-4 py-6 md:px-6">
+      <PageHeader
+        eyebrow="Procurement"
+        description="Purchases, GST splits, and supplier analytics in card tiles."
+      />
 
-      {/* ── Stats row ── */}
       {gstSummary && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <StatCard label="Total Spend" value={fmt(gstSummary.totalFinal)} sub={`${gstSummary.totalRecords} purchases`} />
-          <StatCard label="Base Cost"   value={fmt(gstSummary.totalBase)} />
-          <StatCard label="Total GST"   value={fmt(gstSummary.totalGST)} />
-          <StatCard label="Suppliers"   value={suppliers.length} sub="unique" />
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <StatCard
+            label="Total spend"
+            value={fmt(gstSummary.totalFinal)}
+            sub={`${gstSummary.totalRecords} purchases`}
+            icon={HiOutlineBanknotes}
+            accent="default"
+          />
+          <StatCard label="Base cost" value={fmt(gstSummary.totalBase)} icon={HiOutlineCalculator} accent="violet" />
+          <StatCard label="Total GST" value={fmt(gstSummary.totalGST)} icon={HiOutlineReceiptPercent} accent="warning" />
+          <StatCard
+            label="Suppliers"
+            value={String(suppliers.length)}
+            sub="unique"
+            icon={HiOutlineBuildingStorefront}
+            accent="success"
+          />
         </div>
       )}
 
-      {/* ── AI Insights ── */}
       {(matAnalytics.length > 0 || suppliers.length > 0) && (
-        <div className="bg-indigo-950/30 border border-indigo-500/20 rounded-2xl px-5 py-4 flex flex-col sm:flex-row gap-3 sm:gap-8">
-          <p className="text-sm text-indigo-300">
-            <span className="font-semibold text-white">Top spend:</span>{' '}
-            You spend most on <span className="text-indigo-400 font-semibold">{topMaterial}</span>
-          </p>
-          <p className="text-sm text-indigo-300">
-            <span className="font-semibold text-white">Most frequent supplier:</span>{' '}
-            <span className="text-indigo-400 font-semibold">{topSupplier}</span>
-            {suppliers[0] ? ` (${suppliers[0].transactions} orders)` : ''}
-          </p>
-        </div>
+        <BizCard title="Signals" subtitle="Quick read on spend concentration" hover={false}>
+          <div className="flex flex-col gap-2 text-sm text-slate-700 dark:text-slate-300 sm:flex-row sm:gap-8">
+            <p>
+              <span className="font-semibold text-slate-900 dark:text-slate-100">Top spend:</span> {topMaterial}
+            </p>
+            <p>
+              <span className="font-semibold text-slate-900 dark:text-slate-100">Frequent supplier:</span> {topSupplier}
+              {suppliers[0] ? ` (${suppliers[0].transactions} orders)` : ''}
+            </p>
+          </div>
+        </BizCard>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-        {/* ── Form ── */}
-        <div className="lg:col-span-2 bg-[#111] border border-[#232323] rounded-2xl p-5">
-          <SectionHeading>Record Purchase</SectionHeading>
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
+        <BizCard className="lg:col-span-2" title="Record purchase" subtitle="GST preview updates live">
           <form onSubmit={handleSubmit} className="space-y-3">
             {[
               { name: 'materialName', label: 'Material Name',    type: 'text' },
@@ -162,7 +156,7 @@ export default function RawMaterials() {
               { name: 'pricePerUnit', label: 'Price per Unit (₹)', type: 'number' },
             ].map(({ name, label, type }) => (
               <div key={name}>
-                <label className="block text-xs text-gray-500 mb-1">{label}</label>
+                <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">{label}</label>
                 <input
                   name={name}
                   type={type}
@@ -170,157 +164,139 @@ export default function RawMaterials() {
                   onChange={handleChange}
                   min={type === 'number' ? '0' : undefined}
                   step={type === 'number' ? 'any' : undefined}
-                  className="w-full bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-indigo-500/60"
+                  className={inputCls}
                   placeholder={label}
                 />
               </div>
             ))}
 
-            {/* GST % */}
             <div>
-              <label className="block text-xs text-gray-500 mb-1">GST %</label>
-              <select
-                name="gstPercent"
-                value={form.gstPercent}
-                onChange={handleChange}
-                className="w-full bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500/60"
-              >
-                {GST_OPTIONS.map(g => <option key={g} value={g}>{g}%</option>)}
+              <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">GST %</label>
+              <select name="gstPercent" value={form.gstPercent} onChange={handleChange} className={inputCls}>
+                {GST_OPTIONS.map((g) => (
+                  <option key={g} value={g}>
+                    {g}%
+                  </option>
+                ))}
               </select>
             </div>
 
-            {/* Purchase Date */}
             <div>
-              <label className="block text-xs text-gray-500 mb-1">Purchase Date (optional)</label>
-              <input
-                name="purchaseDate"
-                type="date"
-                value={form.purchaseDate}
-                onChange={handleChange}
-                className="w-full bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500/60"
-              />
+              <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">Purchase date (optional)</label>
+              <input name="purchaseDate" type="date" value={form.purchaseDate} onChange={handleChange} className={inputCls} />
             </div>
 
-            {/* Live preview */}
             {preview && (
-              <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl px-4 py-3 text-xs text-gray-400 space-y-1">
-                <div className="flex justify-between"><span>Base Cost</span><span className="text-white">{fmt(preview.base)}</span></div>
-                <div className="flex justify-between"><span>CGST ({form.gstPercent / 2}%)</span><span>{fmt(preview.cgst)}</span></div>
-                <div className="flex justify-between"><span>SGST ({form.gstPercent / 2}%)</span><span>{fmt(preview.sgst)}</span></div>
-                <div className="flex justify-between border-t border-[#2a2a2a] pt-1 font-semibold text-white">
-                  <span>Final Cost</span><span>{fmt(preview.final)}</span>
+              <div className="space-y-1 rounded border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-400">
+                <div className="flex justify-between">
+                  <span>Base</span>
+                  <span className="font-medium text-slate-900 dark:text-slate-100">{fmt(preview.base)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>CGST ({form.gstPercent / 2}%)</span>
+                  <span>{fmt(preview.cgst)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>SGST ({form.gstPercent / 2}%)</span>
+                  <span>{fmt(preview.sgst)}</span>
+                </div>
+                <div className="flex justify-between border-t border-slate-200 pt-1 font-semibold text-slate-900 dark:border-slate-600 dark:text-slate-100">
+                  <span>Final</span>
+                  <span>{fmt(preview.final)}</span>
                 </div>
               </div>
             )}
 
-            {error && <p className="text-xs text-red-400">{error}</p>}
+            {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
 
             <button
               type="submit"
               disabled={submitting}
-              className="w-full bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-sm font-semibold rounded-xl py-2.5 transition-colors"
+              className="w-full rounded-xl bg-gradient-to-r from-biz-accent to-blue-600 py-2.5 text-sm font-bold text-white shadow-md disabled:opacity-50 dark:from-cyan-600 dark:to-blue-600"
             >
-              {submitting ? 'Saving...' : 'Record Purchase'}
+              {submitting ? 'Saving…' : 'Record purchase'}
             </button>
           </form>
-        </div>
+        </BizCard>
 
-        {/* ── Table ── */}
-        <div className="lg:col-span-3 bg-[#111] border border-[#232323] rounded-2xl p-5 overflow-x-auto">
-          <SectionHeading>Purchase History</SectionHeading>
+        <BizCard className="lg:col-span-3" title="Purchase history" subtitle="Each lot as a card">
           {materials.length === 0 ? (
-            <p className="text-sm text-gray-600 py-8 text-center">No purchases recorded yet.</p>
+            <p className="py-8 text-center text-sm text-slate-500">No purchases recorded yet.</p>
           ) : (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-xs text-gray-600 border-b border-[#232323]">
-                  <th className="pb-2 font-medium">Material</th>
-                  <th className="pb-2 font-medium">Supplier</th>
-                  <th className="pb-2 font-medium text-right">Qty</th>
-                  <th className="pb-2 font-medium text-right">GST%</th>
-                  <th className="pb-2 font-medium text-right">Final Cost</th>
-                </tr>
-              </thead>
-              <tbody>
-                {materials.map((m) => (
-                  <tr key={m._id} className="border-b border-[#1a1a1a] hover:bg-[#161616] transition-colors">
-                    <td className="py-2.5 text-white font-medium">{m.materialName}</td>
-                    <td className="py-2.5 text-gray-400">{m.supplierName}</td>
-                    <td className="py-2.5 text-gray-400 text-right">{m.quantity}</td>
-                    <td className="py-2.5 text-gray-400 text-right">{m.gstPercent}%</td>
-                    <td className="py-2.5 text-emerald-400 font-semibold text-right">{fmt(m.finalCost)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {materials.map((m) => (
+                <div
+                  key={m._id}
+                  className="rounded-xl border border-slate-100 bg-gradient-to-br from-white to-slate-50/90 p-4 shadow-md ring-1 ring-slate-200/60 dark:border-slate-700 dark:from-slate-900 dark:to-biz-slate dark:ring-slate-700"
+                >
+                  <p className="font-bold text-slate-900 dark:text-white">{m.materialName}</p>
+                  <p className="text-xs text-slate-500">{m.supplierName}</p>
+                  <div className="mt-3 flex items-end justify-between">
+                    <div>
+                      <p className="text-[10px] font-bold uppercase text-slate-400">Qty</p>
+                      <p className="text-lg font-bold tabular-nums">{m.quantity}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[10px] font-bold uppercase text-slate-400">GST</p>
+                      <p className="font-semibold">{m.gstPercent}%</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[10px] font-bold uppercase text-slate-400">Final</p>
+                      <p className="text-lg font-bold text-emerald-700 dark:text-emerald-400">{fmt(m.finalCost)}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
-        </div>
+        </BizCard>
       </div>
 
-      {/* ── Charts ── */}
       {(matAnalytics.length > 0 || suppliers.length > 0 || monthly.length > 0) && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Top Materials bar */}
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
           {matAnalytics.length > 0 && (
-            <div className="bg-[#111] border border-[#232323] rounded-2xl p-5">
-              <SectionHeading>Top Materials by Spend</SectionHeading>
+            <BizCard title="Top materials by spend" hover={false}>
               <ResponsiveContainer width="100%" height={200}>
                 <BarChart data={matAnalytics.slice(0, 6)} margin={{ top: 0, right: 0, left: -10, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#1e1e1e" />
-                  <XAxis dataKey="materialName" tick={{ fill: '#6b7280', fontSize: 10 }} />
-                  <YAxis tick={{ fill: '#6b7280', fontSize: 10 }} />
-                  <Tooltip
-                    contentStyle={{ background: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: 8 }}
-                    labelStyle={{ color: '#fff', fontSize: 12 }}
-                    formatter={(v) => [fmt(v), 'Spend']}
-                  />
-                  <Bar dataKey="totalSpend" fill="#6366f1" radius={[4, 4, 0, 0]} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#cbd5e1" />
+                  <XAxis dataKey="materialName" tick={{ fontSize: 10 }} />
+                  <YAxis tick={{ fontSize: 10 }} />
+                  <Tooltip formatter={(v) => [fmt(v), 'Spend']} />
+                  <Bar dataKey="totalSpend" fill="#2563eb" radius={[6, 6, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
-            </div>
+            </BizCard>
           )}
 
-          {/* Supplier frequency bar */}
           {suppliers.length > 0 && (
-            <div className="bg-[#111] border border-[#232323] rounded-2xl p-5">
-              <SectionHeading>Supplier Frequency</SectionHeading>
+            <BizCard title="Supplier frequency" hover={false}>
               <ResponsiveContainer width="100%" height={200}>
                 <BarChart data={suppliers.slice(0, 6)} margin={{ top: 0, right: 0, left: -10, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#1e1e1e" />
-                  <XAxis dataKey="supplierName" tick={{ fill: '#6b7280', fontSize: 10 }} />
-                  <YAxis allowDecimals={false} tick={{ fill: '#6b7280', fontSize: 10 }} />
-                  <Tooltip
-                    contentStyle={{ background: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: 8 }}
-                    labelStyle={{ color: '#fff', fontSize: 12 }}
-                    formatter={(v) => [v, 'Orders']}
-                  />
-                  <Bar dataKey="transactions" fill="#10b981" radius={[4, 4, 0, 0]} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#cbd5e1" />
+                  <XAxis dataKey="supplierName" tick={{ fontSize: 10 }} />
+                  <YAxis allowDecimals={false} tick={{ fontSize: 10 }} />
+                  <Tooltip formatter={(v) => [v, 'Orders']} />
+                  <Bar dataKey="transactions" fill="#0d9488" radius={[6, 6, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
-            </div>
+            </BizCard>
           )}
 
-          {/* Monthly spend line */}
           {monthly.length > 0 && (
-            <div className="bg-[#111] border border-[#232323] rounded-2xl p-5">
-              <SectionHeading>Monthly Spend</SectionHeading>
+            <BizCard title="Monthly spend" hover={false}>
               <ResponsiveContainer width="100%" height={200}>
                 <LineChart data={monthly} margin={{ top: 0, right: 0, left: -10, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#1e1e1e" />
-                  <XAxis dataKey="label" tick={{ fill: '#6b7280', fontSize: 10 }} />
-                  <YAxis tick={{ fill: '#6b7280', fontSize: 10 }} />
-                  <Tooltip
-                    contentStyle={{ background: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: 8 }}
-                    labelStyle={{ color: '#fff', fontSize: 12 }}
-                    formatter={(v) => [fmt(v), 'Spend']}
-                  />
-                  <Line type="monotone" dataKey="totalSpend" stroke="#f59e0b" strokeWidth={2} dot={{ r: 3, fill: '#f59e0b' }} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#cbd5e1" />
+                  <XAxis dataKey="label" tick={{ fontSize: 10 }} />
+                  <YAxis tick={{ fontSize: 10 }} />
+                  <Tooltip formatter={(v) => [fmt(v), 'Spend']} />
+                  <Line type="monotone" dataKey="totalSpend" stroke="#d97706" strokeWidth={2} dot={{ r: 3 }} />
                 </LineChart>
               </ResponsiveContainer>
-            </div>
+            </BizCard>
           )}
         </div>
       )}
-    </div>
+    </main>
   );
 }

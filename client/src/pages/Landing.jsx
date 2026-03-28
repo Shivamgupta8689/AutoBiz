@@ -1,5 +1,9 @@
+import { lazy, Suspense } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { HiCheck, HiOutlineDocumentText, HiOutlineSparkles, HiOutlineChartBarSquare } from 'react-icons/hi2';
+
+const LandingHero3D = lazy(() => import('../components/landing/LandingHero3D'));
 
 function BellIcon({ className }) {
   return (
@@ -9,68 +13,40 @@ function BellIcon({ className }) {
   );
 }
 
-/** Hero: 3D-style floating apps + notifications converging on central hub */
-function HeroVisual() {
-  const absorbItems = [
-    { tx: '-100px', ty: '-72px', label: 'Mail', sub: '12 new', color: 'from-cyan-500/40 to-cyan-600/20' },
-    { tx: '92px', ty: '-84px', label: 'Chat', sub: '3 pings', color: 'from-violet-500/40 to-violet-600/20' },
-    { tx: '-88px', ty: '56px', label: 'CRM', sub: 'Sync', color: 'from-fuchsia-500/35 to-pink-600/20' },
-    { tx: '96px', ty: '52px', label: 'Docs', sub: '2 edits', color: 'from-emerald-500/35 to-teal-600/20' },
-    { tx: '0px', ty: '-108px', label: 'Alert', sub: 'Urgent', color: 'from-amber-500/40 to-orange-600/20', isAlert: true },
-    { tx: '-104px', ty: '12px', label: 'Cal', sub: 'Now', color: 'from-sky-500/35 to-blue-600/20' },
+/** Live Three.js hero + product capability strip */
+function LandingHeroPanel() {
+  const highlights = [
+    { Icon: HiOutlineDocumentText, title: 'GST-ready invoices', sub: 'PDF export & UPI QR in one place' },
+    { Icon: HiOutlineSparkles, title: 'Gemini reminders', sub: 'Tone-aware follow-ups for your customers' },
+    { Icon: HiOutlineChartBarSquare, title: 'Analytics & health', sub: 'See revenue and risk at a glance' },
   ];
 
   return (
-    <div className="relative mx-auto w-full max-w-[min(100%,520px)] min-h-[320px] md:min-h-[420px]">
-      <div className="landing-scene absolute inset-0 flex items-center justify-center overflow-hidden">
-        <div className="landing-scene-inner relative h-full min-h-[320px] w-full max-w-[480px] animate-float-slow">
-          {/* Central smart dashboard hub */}
-          <div className="absolute left-1/2 top-1/2 z-20 -translate-x-1/2 -translate-y-1/2">
-            <div className="animate-glow-pulse relative rounded-2xl border border-cyan-400/50 bg-gradient-to-br from-[#0c1829] via-[#111827] to-[#0f172a] px-6 py-5 shadow-[0_0_40px_rgba(34,211,238,0.25)] backdrop-blur-sm">
-              <div className="absolute -inset-px rounded-2xl bg-gradient-to-br from-cyan-500/20 via-transparent to-violet-500/20 opacity-80" />
-              <div className="relative flex flex-col items-center gap-1">
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-500 to-violet-600 text-lg font-bold text-white shadow-lg">
-                  ◈
-                </div>
-                <p className="text-sm font-semibold tracking-wide text-cyan-100">Smart Dashboard</p>
-                <p className="text-[10px] uppercase tracking-[0.2em] text-cyan-400/70">Unified · In sync</p>
-              </div>
+    <div className="relative mx-auto w-full max-w-[min(100%,560px)]">
+      <Suspense
+        fallback={
+          <div className="flex h-[min(340px,48vh)] min-h-[240px] items-center justify-center rounded-2xl bg-white/[0.04] ring-1 ring-white/10">
+            <span className="text-sm font-medium text-cyan-400/80">Loading 3D preview…</span>
+          </div>
+        }
+      >
+        <LandingHero3D />
+      </Suspense>
+      <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
+        {highlights.map(({ Icon, title, sub }) => (
+          <div
+            key={title}
+            className="flex items-start gap-3 rounded-xl border border-white/10 bg-white/[0.04] p-3.5 backdrop-blur-sm transition hover:border-cyan-500/35 hover:bg-white/[0.07]"
+          >
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-cyan-500/15 text-cyan-300">
+              <Icon className="h-5 w-5" aria-hidden />
             </div>
-            <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-              <div className="absolute h-44 w-44 -translate-x-1/2 -translate-y-1/2 rounded-full border border-cyan-500/10 md:h-48 md:w-48" />
-              <div className="absolute h-56 w-56 -translate-x-1/2 -translate-y-1/2 rounded-full border border-violet-500/10 opacity-60 md:h-64 md:w-64" />
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-white">{title}</p>
+              <p className="mt-0.5 text-[11px] leading-snug text-gray-500">{sub}</p>
             </div>
           </div>
-
-          {absorbItems.map((item, i) => (
-            <div
-              key={item.label}
-              className="animate-card-absorb absolute left-1/2 top-1/2 z-10 w-[92px] sm:w-[100px]"
-              style={{
-                ['--tx']: item.tx,
-                ['--ty']: item.ty,
-                animationDelay: `${i * 0.35}s`,
-              }}
-            >
-              <div className={`flex flex-col gap-1 rounded-xl border border-white/10 bg-gradient-to-br ${item.color} p-2.5 shadow-xl backdrop-blur-md`}>
-                <div className="flex items-center justify-between gap-1">
-                  {item.isAlert ? (
-                    <BellIcon className="h-4 w-4 text-amber-300" />
-                  ) : (
-                    <span className="text-[10px] font-bold text-white/90">{item.label}</span>
-                  )}
-                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-cyan-400 shadow-[0_0_8px_#22d3ee]" />
-                </div>
-                <p className="text-[9px] leading-tight text-white/70">{item.sub}</p>
-                {item.isAlert && <p className="text-[9px] font-medium text-amber-200/90">Notification</p>}
-              </div>
-            </div>
-          ))}
-
-          <div className="pointer-events-none absolute left-1/2 top-1/2 hidden -translate-x-1/2 -translate-y-1/2 md:block">
-            <div className="animate-orbit h-2 w-2 rounded-full bg-violet-400/50 blur-[2px]" />
-          </div>
-        </div>
+        ))}
       </div>
     </div>
   );
@@ -186,13 +162,16 @@ function SolutionSection() {
             </p>
             <ul className="mt-8 space-y-3 text-sm text-gray-300">
               <li className="flex items-center gap-2">
-                <span className="text-cyan-400">✓</span> Context-aware routing so the right work surfaces first
+                <HiCheck className="h-4 w-4 shrink-0 text-cyan-400" aria-hidden />
+                Context-aware routing so the right work surfaces first
               </li>
               <li className="flex items-center gap-2">
-                <span className="text-violet-400">✓</span> Tasks and alerts flow into a single actionable dashboard
+                <HiCheck className="h-4 w-4 shrink-0 text-violet-400" aria-hidden />
+                Tasks and alerts flow into a single actionable dashboard
               </li>
               <li className="flex items-center gap-2">
-                <span className="text-fuchsia-400">✓</span> Subtle motion and focus-friendly layout — built for clarity
+                <HiCheck className="h-4 w-4 shrink-0 text-fuchsia-400" aria-hidden />
+                Subtle motion and focus-friendly layout — built for clarity
               </li>
             </ul>
           </div>
@@ -279,7 +258,7 @@ export default function Landing() {
                 </Link>
               </div>
             </div>
-            <HeroVisual />
+            <LandingHeroPanel />
           </div>
         </section>
 

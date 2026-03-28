@@ -1,13 +1,16 @@
-import { useEffect, useState } from 'react';
-import { getCustomers, createCustomer, deleteCustomer, getCustomerHealth } from '../services/api';
+import { useEffect, useMemo, useState } from 'react';
+import { HiEllipsisHorizontal } from 'react-icons/hi2';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { getCustomers, createCustomer, deleteCustomer, getCustomerHealth, getInvoices } from '../services/api';
+import BizCard from '../components/ui/BizCard';
+import PageHeader from '../components/ui/PageHeader';
 
 const emptyForm = { name: '', phone: '', email: '', businessName: '' };
 
-const inputCls = "w-full bg-[#1e1e1e] border border-[#2a2a2a] rounded-xl px-3 py-2.5 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500";
-
 export default function Customers() {
   const [customers, setCustomers] = useState([]);
-  const [healthScores, setHealthScores] = useState({}); // { [customerId]: { score, label, color } }
+  const [invoices, setInvoices] = useState([]);
+  const [healthScores, setHealthScores] = useState({});
   const [form, setForm] = useState(emptyForm);
   const [showForm, setShowForm] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -15,154 +18,213 @@ export default function Customers() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    getCustomers()
-      .then(({ data }) => {
-        setCustomers(data);
-        // Fetch health score for each customer in parallel (fire-and-forget)
-        data.forEach(c => {
+    Promise.all([getCustomers(), getInvoices()])
+      .then(([{ data: custs }, { data: inv }]) => {
+        setCustomers(custs);
+        setInvoices(inv);
+        custs.forEach((c) => {
           getCustomerHealth(c._id)
-            .then(({ data: h }) => setHealthScores(prev => ({ ...prev, [c._id]: h })))
+            .then(({ data: h }) => setHealthScores((prev) => ({ ...prev, [c._id]: h })))
             .catch(() => {});
         });
       })
-      .catch(() => setError('Failed to load customers'))
+      .catch(() => setError('Failed to load data'))
       .finally(() => setLoading(false));
   }, []);
 
-  const handleChange = e => setForm(p => ({ ...p, [e.target.name]: e.target.value }));
+  const rows = useMemo(() => {
+    return customers.map((c) => {
+      const custInv = invoices.filter((i) => (i.customerId?._id || i.customerId) === c._id);
+      const unpaid = custInv.filter((i) => i.status !== 'paid');
+      const totalDue = unpaid.reduce((s, i) => s + (i.total || 0), 0);
+      const paidInv = custInv.filter((i) => i.status === 'paid');
+      const lastPaid = paidInv.length
+        ? new Date(
+            Math.max(...paidInv.map((i) => new Date(i.updatedAt || i.createdAt).getTime()))
+          ).toLocaleDateString('en-IN')
+        : '—';
+      const h = healthScores[c._id];
+      return { customer: c, totalDue, lastPaid, health: h };
+    });
+  }, [customers, invoices, healthScores]);
 
-  const handleSubmit = async e => {
+  const chartData = useMemo(() => {
+    return [...rows]
+      .filter((r) => r.totalDue > 0)
+      .sort((a, b) => b.totalDue - a.totalDue)
+      .slice(0, 5)
+      .map((r) => ({
+        name: r.customer.name.length > 14 ? `${r.customer.name.slice(0, 12)}…` : r.customer.name,
+        unpaid: r.totalDue,
+      }));
+  }, [rows]);
+
+  const handleChange = (e) => setForm((p) => ({ ...p, [e.target.name]: e.target.value }));
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    setSubmitting(true); setError('');
+    setSubmitting(true);
+    setError('');
     try {
       const { data } = await createCustomer(form);
-      setCustomers(p => [data, ...p]);
-      setForm(emptyForm); setShowForm(false);
+      setCustomers((p) => [data, ...p]);
+      setForm(emptyForm);
+      setShowForm(false);
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to create customer');
-    } finally { setSubmitting(false); }
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const handleDelete = async id => {
+  const handleDelete = async (id) => {
     if (!confirm('Delete this customer?')) return;
     try {
       await deleteCustomer(id);
-      setCustomers(p => p.filter(c => c._id !== id));
-    } catch { setError('Failed to delete customer'); }
+      setCustomers((p) => p.filter((c) => c._id !== id));
+    } catch {
+      setError('Failed to delete customer');
+    }
   };
 
-  const healthBadgeCls = (color) => {
-    if (color === 'green')  return 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/25';
-    if (color === 'yellow') return 'bg-amber-500/15 text-amber-400 border border-amber-500/25';
-    return 'bg-red-500/15 text-red-400 border border-red-500/25';
+  const healthBadge = (color) => {
+    if (color === 'green')
+      return 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300';
+    if (color === 'yellow') return 'bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200';
+    return 'bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300';
   };
 
-  // Avatar colour from name
-  const avatarColor = (name) => {
-    const colors = ['bg-indigo-900 text-indigo-300', 'bg-emerald-900 text-emerald-300', 'bg-amber-900 text-amber-300', 'bg-pink-900 text-pink-300', 'bg-violet-900 text-violet-300'];
-    return colors[(name?.charCodeAt(0) || 0) % colors.length];
-  };
+  const inputCls =
+    'w-full rounded border border-slate-200 bg-white px-3 py-2 text-sm focus:border-blue-700 focus:outline-none focus:ring-1 focus:ring-blue-700 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:focus:border-blue-500';
 
   return (
-    <main className="p-5 md:p-7 max-w-5xl mx-auto">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-7">
-        <div>
-          <h1 className="text-2xl font-bold text-white">Customers</h1>
-          <p className="text-sm text-gray-500 mt-0.5">{customers.length} total customers</p>
-        </div>
-        <button
-          onClick={() => setShowForm(v => !v)}
-          className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-5 py-2.5 rounded-xl shadow-lg shadow-indigo-500/20 transition-all text-sm"
-        >
-          {showForm ? '× Cancel' : '+ Add Customer'}
-        </button>
-      </div>
+    <main className="mx-auto max-w-[1600px] px-4 py-6 md:px-6">
+      <PageHeader
+        eyebrow="Accounts"
+        description={`${customers.length} customers on file — health scores refresh as invoices change.`}
+        actions={
+          <button
+            type="button"
+            onClick={() => setShowForm((v) => !v)}
+            className="rounded-xl bg-gradient-to-r from-biz-accent to-blue-600 px-4 py-2 text-xs font-bold text-white shadow-md shadow-biz-accent/20 dark:from-cyan-600 dark:to-blue-600"
+          >
+            {showForm ? 'Close form' : 'Add customer'}
+          </button>
+        }
+      />
 
       {error && (
-        <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-sm rounded-xl px-4 py-3 mb-5">
+        <div className="mb-4 rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/30 dark:text-red-200">
           {error}
         </div>
       )}
 
       {showForm && (
-        <form onSubmit={handleSubmit} className="bg-[#161616] border border-[#2a2a2a] rounded-2xl p-6 mb-6">
-          <h3 className="text-base font-semibold text-white mb-5">New Customer</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
+        <form onSubmit={handleSubmit} className="mb-6">
+          <BizCard title="New customer" subtitle="Name is required; other fields help reminders and health.">
+          <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
             {[
-              { name: 'name',         label: 'Full Name *',     placeholder: 'Ramesh Kumar' },
-              { name: 'businessName', label: 'Business Name',   placeholder: 'Ramesh Kirana Store' },
-              { name: 'phone',        label: 'Phone',           placeholder: '9876543210' },
-              { name: 'email',        label: 'Email',           placeholder: 'ramesh@example.com' },
+              { name: 'name', label: 'Full name *', placeholder: 'Ramesh Kumar' },
+              { name: 'businessName', label: 'Business name', placeholder: 'Ramesh Kirana' },
+              { name: 'phone', label: 'Phone', placeholder: '9876543210' },
+              { name: 'email', label: 'Email', placeholder: 'ramesh@example.com' },
             ].map(({ name, label, placeholder }) => (
               <div key={name}>
-                <label className="block text-xs font-medium text-gray-500 mb-1.5">{label}</label>
-                <input name={name} value={form[name]} onChange={handleChange} required={name === 'name'} placeholder={placeholder} className={inputCls} />
+                <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">{label}</label>
+                <input
+                  name={name}
+                  value={form[name]}
+                  onChange={handleChange}
+                  required={name === 'name'}
+                  placeholder={placeholder}
+                  className={inputCls}
+                />
               </div>
             ))}
           </div>
-          <div className="flex justify-end">
-            <button type="submit" disabled={submitting} className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-semibold px-6 py-2.5 rounded-xl text-sm shadow-lg shadow-indigo-500/20 transition-all">
-              {submitting ? 'Saving...' : 'Save Customer'}
+          <div className="flex justify-end pt-2">
+            <button
+              type="submit"
+              disabled={submitting}
+              className="rounded-xl bg-gradient-to-r from-biz-accent to-blue-600 px-5 py-2 text-sm font-bold text-white shadow-md disabled:opacity-50 dark:from-cyan-600 dark:to-blue-600"
+            >
+              {submitting ? 'Saving…' : 'Save'}
             </button>
           </div>
+          </BizCard>
         </form>
       )}
 
-      {loading ? (
-        <div className="space-y-3">
-          {[1,2,3].map(i => <div key={i} className="h-16 bg-[#161616] border border-[#232323] rounded-2xl animate-pulse" />)}
-        </div>
-      ) : customers.length === 0 ? (
-        <div className="bg-[#161616] border border-[#232323] rounded-2xl p-12 text-center">
-          <p className="text-3xl mb-3">👥</p>
-          <p className="text-gray-400 text-sm font-medium">No customers yet.</p>
-          <p className="text-gray-600 text-xs mt-1">Click "+ Add Customer" to get started.</p>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {customers.map(c => (
-            <div key={c._id} className="bg-[#161616] border border-[#232323] hover:border-[#333] rounded-2xl px-5 py-4 flex items-center gap-4 group transition-all">
-              <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold shrink-0 ${avatarColor(c.name)}`}>
-                {c.name.charAt(0).toUpperCase()}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-semibold text-white text-sm">{c.name}</p>
-                {c.businessName && <p className="text-xs text-gray-500 mt-0.5">{c.businessName}</p>}
-              </div>
-              <div className="hidden sm:flex items-center gap-6 text-xs text-gray-500">
-                {c.phone && (
-                  <div className="flex items-center gap-1.5">
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/>
-                    </svg>
-                    {c.phone}
-                  </div>
-                )}
-                {c.email && (
-                  <div className="flex items-center gap-1.5">
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
-                    </svg>
-                    {c.email}
-                  </div>
-                )}
-              </div>
-              {/* Health score badge */}
-              {healthScores[c._id] && (
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+        <div className="lg:col-span-2">
+          <BizCard title="Customer roster" subtitle="Cards sort exposure at a glance">
+          {loading ? (
+            <div className="py-12 text-center text-sm text-slate-500">Loading…</div>
+          ) : customers.length === 0 ? (
+            <div className="py-12 text-center text-sm text-slate-500">No customers yet.</div>
+          ) : (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {rows.map(({ customer: c, totalDue, lastPaid, health }) => (
                 <div
-                  className={`shrink-0 text-[11px] font-bold px-2.5 py-1 rounded-full ${healthBadgeCls(healthScores[c._id].color)}`}
-                  title={`Payment rate: ${healthScores[c._id].breakdown?.paymentRate ?? 0}% · Overdue: ${healthScores[c._id].breakdown?.overdue ?? 0}`}
+                  key={c._id}
+                  className="flex flex-col rounded-xl border border-slate-100 bg-gradient-to-br from-white to-slate-50/90 p-4 shadow-md ring-1 ring-slate-200/60 transition hover:-translate-y-0.5 hover:shadow-lg dark:border-slate-700 dark:from-slate-900 dark:to-biz-slate dark:ring-slate-700"
                 >
-                  {healthScores[c._id].score} {healthScores[c._id].label}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="truncate font-bold text-slate-900 dark:text-white">{c.name}</p>
+                      {c.businessName && <p className="truncate text-xs text-slate-500">{c.businessName}</p>}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(c._id)}
+                      className="shrink-0 text-xs font-semibold text-slate-400 hover:text-red-600"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                  <p className="mt-3 text-2xl font-bold tabular-nums text-biz-navy dark:text-white">
+                    ₹{totalDue.toLocaleString('en-IN')}
+                    <span className="ml-2 text-[10px] font-semibold uppercase tracking-wide text-slate-400">due</span>
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500">Last paid: {lastPaid}</p>
+                  <div className="mt-3">
+                    {health ? (
+                      <span
+                        className={`inline-flex rounded-full px-3 py-1 text-xs font-bold ${healthBadge(health.color)}`}
+                        title={`Payment rate ${health.breakdown?.paymentRate ?? '—'}%`}
+                      >
+                        {health.score} · {health.label}
+                      </span>
+                    ) : (
+                      <HiEllipsisHorizontal className="inline h-5 w-5 text-slate-400" aria-label="Loading health" />
+                    )}
+                  </div>
                 </div>
-              )}
-              <button onClick={() => handleDelete(c._id)} className="opacity-0 group-hover:opacity-100 text-gray-600 hover:text-red-400 text-sm px-2 py-1 rounded-lg transition-all shrink-0">
-                ×
-              </button>
+              ))}
             </div>
-          ))}
+          )}
+          </BizCard>
         </div>
-      )}
+
+        <BizCard title="Top unpaid balances" subtitle="By amount outstanding">
+            {chartData.length === 0 ? (
+              <p className="py-8 text-center text-xs text-slate-500">No unpaid balances</p>
+            ) : (
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={chartData} layout="vertical" margin={{ left: 4, right: 8 }}>
+                  <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                  <XAxis type="number" hide />
+                  <YAxis dataKey="name" type="category" width={88} tick={{ fontSize: 10 }} />
+                  <Tooltip
+                    formatter={(v) => [`₹${Number(v).toLocaleString('en-IN')}`, 'Unpaid']}
+                    contentStyle={{ fontSize: 12 }}
+                  />
+                  <Bar dataKey="unpaid" fill="#1e40af" radius={[0, 2, 2, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+        </BizCard>
+      </div>
     </main>
   );
 }

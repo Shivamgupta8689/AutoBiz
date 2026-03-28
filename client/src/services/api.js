@@ -30,6 +30,10 @@ export const createInvoice      = (data) => api.post('/invoices', data);
 export const updateInvoiceStatus = (id, status) => api.patch(`/invoices/${id}/status`, { status });
 export const deleteInvoice      = (id) => api.delete(`/invoices/${id}`);
 
+/** Single-invoice reminder evaluation (AI message when SEND/ESCALATE) */
+export const evaluateReminderForInvoice = (invoiceId, body = {}) =>
+  api.post(`/reminders/evaluate/${invoiceId}`, body);
+
 // Payments
 export const simulatePayment = (invoiceId) => api.post('/payments/webhook', { invoiceId });
 
