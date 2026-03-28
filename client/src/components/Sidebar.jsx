@@ -94,10 +94,10 @@ function BellDropdown({ onClose }) {
 
   return (
     <div className="absolute bottom-full left-full ml-2 mb-2 w-80 bg-[#1a1a1a] border border-[#2a2a2a] rounded-2xl shadow-2xl shadow-black/60 z-50 overflow-hidden">
-      {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-[#252525]">
         <p className="text-sm font-semibold text-white">Notifications</p>
         <button
+          type="button"
           onClick={handleMarkAll}
           className="text-[11px] text-indigo-400 hover:text-indigo-300 font-medium"
         >
@@ -178,7 +178,7 @@ export default function Sidebar({ isOpen, onClose }) {
     return () => document.removeEventListener('mousedown', handler);
   }, [bellOpen]);
 
-  const handleLogout = () => { logout(); navigate('/login'); };
+  const handleLogout = () => { logout(); navigate('/'); };
 
   return (
     <>
@@ -195,10 +195,9 @@ export default function Sidebar({ isOpen, onClose }) {
           transition-transform duration-300 lg:translate-x-0
           ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}
       >
-        {/* Logo */}
         <div className="px-5 py-5 border-b border-[#232323]">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-sm font-bold">
+            <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-sm font-bold text-white">
               SI
             </div>
             <div>
@@ -242,9 +241,9 @@ export default function Sidebar({ isOpen, onClose }) {
         {/* User footer */}
         <div className="px-4 py-4 border-t border-[#232323]">
           <div className="flex items-center gap-3 mb-3">
-            {/* Bell button */}
             <div ref={bellRef} className="relative">
               <button
+                type="button"
                 onClick={() => setBellOpen(v => !v)}
                 className="relative w-8 h-8 rounded-full bg-[#1e1e1e] border border-[#2a2a2a] flex items-center justify-center text-gray-400 hover:text-white hover:border-[#444] transition-all shrink-0"
               >
@@ -266,6 +265,7 @@ export default function Sidebar({ isOpen, onClose }) {
             </div>
           </div>
           <button
+            type="button"
             onClick={handleLogout}
             className="w-full text-xs text-gray-500 hover:text-red-400 border border-[#2a2a2a] hover:border-red-900 px-3 py-1.5 rounded-lg font-medium text-left flex items-center gap-2"
           >

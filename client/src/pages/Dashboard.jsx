@@ -31,7 +31,7 @@ function useCountUp(target, duration = 900) {
   return val;
 }
 
-function StatCard({ label, rawValue, prefix = '', suffix = '', icon, gradient, delay }) {
+function StatCard({ label, rawValue, prefix = '', suffix = '', abbr, delay }) {
   const numVal = typeof rawValue === 'number' ? rawValue : 0;
   const animated = useCountUp(numVal);
   const display = prefix + (numVal > 999
@@ -41,15 +41,14 @@ function StatCard({ label, rawValue, prefix = '', suffix = '', icon, gradient, d
 
   return (
     <div
-      className={`relative rounded-2xl p-5 border border-[#232323] overflow-hidden group hover:border-indigo-500/40 hover:shadow-lg hover:shadow-indigo-500/5 animate-fadeSlideUp ${delay}`}
-      style={{ background: '#161616' }}
+      className={`relative rounded-xl p-5 border border-line-subtle overflow-hidden group hover:border-brand/25 transition-colors animate-fadeSlideUp ${delay}`}
+      style={{ background: '#13131a' }}
     >
-      <div className={`absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 ${gradient}`} style={{ opacity: 0.04 }} />
       <div className="flex items-start justify-between mb-4">
-        <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">{label}</p>
-        <span className="text-xl">{icon}</span>
+        <p className="text-[11px] font-medium text-zinc-500 uppercase tracking-wide">{label}</p>
+        <span className="text-[10px] font-semibold text-brand tabular-nums px-1.5 py-0.5 rounded bg-brand-muted border border-brand/20">{abbr}</span>
       </div>
-      <p className="text-3xl font-bold text-white tracking-tight">{display}</p>
+      <p className="text-2xl sm:text-3xl font-semibold text-zinc-100 tracking-tight tabular-nums">{display}</p>
     </div>
   );
 }
@@ -57,9 +56,9 @@ function StatCard({ label, rawValue, prefix = '', suffix = '', icon, gradient, d
 const CustomTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null;
   return (
-    <div className="bg-[#1e1e1e] border border-[#333] rounded-xl px-4 py-2.5 text-sm shadow-xl">
-      <p className="text-gray-400 mb-1">{label}</p>
-      <p className="text-indigo-400 font-bold">₹{Number(payload[0].value).toLocaleString('en-IN')}</p>
+    <div className="bg-app-raised border border-line-subtle rounded-lg px-4 py-2.5 text-sm shadow-brand">
+      <p className="text-zinc-500 mb-1 text-xs">{label}</p>
+      <p className="text-brand font-semibold tabular-nums">₹{Number(payload[0].value).toLocaleString('en-IN')}</p>
     </div>
   );
 };
@@ -67,8 +66,8 @@ const CustomTooltip = ({ active, payload, label }) => {
 const DonutTooltip = ({ active, payload }) => {
   if (!active || !payload?.length) return null;
   return (
-    <div className="bg-[#1e1e1e] border border-[#333] rounded-xl px-3 py-2 text-sm shadow-xl">
-      <p className="text-white font-medium">{payload[0].name}: {payload[0].value}</p>
+    <div className="bg-app-raised border border-line-subtle rounded-lg px-3 py-2 text-sm shadow-brand">
+      <p className="text-zinc-100 font-medium text-sm">{payload[0].name}: {payload[0].value}</p>
     </div>
   );
 };
@@ -152,48 +151,47 @@ export default function Dashboard() {
 
   return (
     <main className="p-5 md:p-7 max-w-7xl mx-auto">
-      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
         <div>
-          <h1 className="text-2xl font-bold text-white">Dashboard</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Track invoices and business performance</p>
+          <h1 className="text-xl font-semibold text-zinc-100 tracking-tight">Dashboard</h1>
+          <p className="text-sm text-zinc-500 mt-0.5">Invoices and cash position</p>
         </div>
-        <div className="flex items-center gap-3">
-          {/* Busy Mode Toggle */}
+        <div className="flex flex-wrap items-center gap-3">
           <button
+            type="button"
             onClick={toggleBusyMode}
-            className={`inline-flex items-center gap-2 font-semibold px-4 py-2.5 rounded-xl text-sm transition-all border ${
+            className={`inline-flex items-center gap-2 font-medium px-4 py-2 rounded-lg text-sm transition-colors border ${
               busyMode
-                ? 'bg-orange-500/20 border-orange-500/50 text-orange-300'
-                : 'bg-[#161616] border-[#2a2a2a] text-gray-400 hover:border-[#444] hover:text-gray-200'
+                ? 'bg-orange-500/15 border-orange-500/40 text-orange-300'
+                : 'bg-app-raised border-line-subtle text-zinc-400 hover:border-zinc-600 hover:text-zinc-200'
             }`}
           >
-            <span className={`w-2 h-2 rounded-full ${busyMode ? 'bg-orange-400 animate-pulse' : 'bg-gray-600'}`} />
-            Busy Mode {busyMode ? 'ON' : 'OFF'}
+            <span className={`w-1.5 h-1.5 rounded-full ${busyMode ? 'bg-orange-400 animate-pulse' : 'bg-zinc-500'}`} />
+            Busy mode {busyMode ? 'on' : 'off'}
           </button>
 
           <Link
             to="/reminders"
-            className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-5 py-2.5 rounded-xl shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30 transition-all text-sm"
+            className="inline-flex items-center gap-2 bg-brand hover:bg-brand-hover text-white font-medium px-5 py-2 rounded-lg shadow-brand-md transition-colors text-sm"
           >
-            <span>⚡</span> Run Smart Reminders
+            Run reminders
           </Link>
         </div>
       </div>
 
       {/* Busy mode warning banner */}
       {busyMode && (
-        <div className="flex items-center gap-3 bg-orange-500/10 border border-orange-500/30 rounded-xl px-4 py-3 mb-5">
-          <span className="text-orange-400 text-lg">⏸</span>
-          <div>
-            <p className="text-sm font-semibold text-orange-300">Busy Mode is ON — All reminders are paused</p>
-            <p className="text-xs text-orange-400/70 mt-0.5">Reminders will show as SUPPRESS until you turn this off.</p>
+        <div className="flex flex-wrap items-center gap-3 bg-orange-500/10 border border-orange-500/25 rounded-lg px-4 py-3 mb-5">
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium text-orange-200">Busy mode is on — outbound reminders are paused</p>
+            <p className="text-xs text-orange-400/80 mt-0.5">New reminder runs will be suppressed until you disable this.</p>
           </div>
           <button
+            type="button"
             onClick={toggleBusyMode}
-            className="ml-auto text-xs text-orange-400 hover:text-orange-200 font-medium border border-orange-500/30 px-3 py-1 rounded-lg transition-all"
+            className="text-xs text-orange-300 hover:text-orange-100 font-medium border border-orange-500/35 px-3 py-1.5 rounded-md transition-colors shrink-0"
           >
-            Turn Off
+            Turn off
           </button>
         </div>
       )}
@@ -212,46 +210,46 @@ export default function Dashboard() {
           Auto-reminder engine: <span className="font-bold">{busyMode ? 'PAUSED' : 'ACTIVE'}</span>
           <span className={`ml-2 ${busyMode ? 'text-orange-600' : 'text-emerald-600'}`}>— Last run: {lastRunText}</span>
         </p>
-        <div className="ml-auto text-xs text-gray-600">Rules: SUPPRESS · DELAY · SEND · ESCALATE</div>
+        <div className="ml-auto text-[10px] text-zinc-600 uppercase tracking-wide hidden sm:block">Rules: suppress · delay · send · escalate</div>
       </div>
 
       {/* Stat cards */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-7">
         {loading ? (
           Array(4).fill(0).map((_, i) => (
-            <div key={i} className="rounded-2xl bg-[#161616] border border-[#232323] h-28 animate-pulse" />
+            <div key={i} className="rounded-xl bg-app-raised border border-line-subtle h-28 animate-pulse" />
           ))
         ) : (
           <>
-            <StatCard label="Total Invoices"   rawValue={invoices.length}   icon="🧾" gradient="bg-indigo-500" delay="delay-100" />
-            <StatCard label="Outstanding"      rawValue={Math.round(outstanding / 100) * 100} prefix="₹" icon="⏳" gradient="bg-amber-500" delay="delay-200" />
-            <StatCard label="Overdue"          rawValue={overdueCount}      icon="🚨" gradient="bg-red-500"   delay="delay-300" />
-            <StatCard label="Paid This Month"  rawValue={Math.round(paidThisMonth / 100) * 100} prefix="₹" icon="✅" gradient="bg-emerald-500" delay="delay-400" />
+            <StatCard label="Total invoices" rawValue={invoices.length} abbr="N" delay="delay-100" />
+            <StatCard label="Outstanding" rawValue={Math.round(outstanding / 100) * 100} prefix="₹" abbr="₹" delay="delay-200" />
+            <StatCard label="Overdue" rawValue={overdueCount} abbr="!" delay="delay-300" />
+            <StatCard label="Paid this month" rawValue={Math.round(paidThisMonth / 100) * 100} prefix="₹" abbr="✓" delay="delay-400" />
           </>
         )}
       </div>
 
       {/* Charts row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-7">
-        <div className="lg:col-span-2 bg-[#161616] border border-[#232323] rounded-2xl p-5">
-          <p className="text-sm font-semibold text-white mb-1">Invoice Volume — Last 30 Days</p>
-          <p className="text-xs text-gray-500 mb-4">Total billed per day</p>
+        <div className="lg:col-span-2 bg-app-raised border border-line-subtle rounded-xl p-5">
+          <p className="text-sm font-medium text-zinc-100 mb-0.5">Invoice volume (30 days)</p>
+          <p className="text-xs text-zinc-500 mb-4">Amount billed per day</p>
           <ResponsiveContainer width="100%" height={200}>
             <LineChart data={chartData} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#222" />
-              <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#666' }} interval={4} tickLine={false} axisLine={false} />
-              <YAxis tick={{ fontSize: 10, fill: '#666' }} tickLine={false} axisLine={false} tickFormatter={v => v > 0 ? `₹${v/1000}k` : '₹0'} width={45} />
+              <CartesianGrid strokeDasharray="3 3" stroke="#27272f" />
+              <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#71717a' }} interval={4} tickLine={false} axisLine={false} />
+              <YAxis tick={{ fontSize: 10, fill: '#71717a' }} tickLine={false} axisLine={false} tickFormatter={v => v > 0 ? `₹${v/1000}k` : '₹0'} width={45} />
               <Tooltip content={<CustomTooltip />} />
-              <Line type="monotone" dataKey="amount" stroke="#6366f1" strokeWidth={2.5} dot={false} activeDot={{ r: 5, fill: '#6366f1', strokeWidth: 0 }} />
+              <Line type="monotone" dataKey="amount" stroke="#6366f1" strokeWidth={2} dot={false} activeDot={{ r: 4, fill: '#6366f1', strokeWidth: 0 }} />
             </LineChart>
           </ResponsiveContainer>
         </div>
 
-        <div className="bg-[#161616] border border-[#232323] rounded-2xl p-5 flex flex-col">
-          <p className="text-sm font-semibold text-white mb-1">Invoice Status</p>
-          <p className="text-xs text-gray-500 mb-3">Distribution by status</p>
+        <div className="bg-app-raised border border-line-subtle rounded-xl p-5 flex flex-col">
+          <p className="text-sm font-medium text-zinc-100 mb-0.5">Status</p>
+          <p className="text-xs text-zinc-500 mb-3">By count</p>
           {pieData.length === 0 ? (
-            <div className="flex-1 flex items-center justify-center text-gray-600 text-sm">No data yet</div>
+            <div className="flex-1 flex items-center justify-center text-zinc-500 text-sm">No data yet</div>
           ) : (
             <div className="flex-1">
               <ResponsiveContainer width="100%" height={200}>
@@ -270,10 +268,11 @@ export default function Dashboard() {
 
       {/* AI Insights */}
       <div className="mb-7">
-        <div className="flex items-center gap-2 mb-4">
-          <h2 className="text-base font-semibold text-white">AI Insights</h2>
-          <span className="text-xs text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 px-2 py-0.5 rounded-full">Gemini</span>
+        <div className="flex flex-wrap items-center gap-2 mb-4">
+          <h2 className="text-base font-medium text-zinc-100">Insights</h2>
+          <span className="text-[10px] text-zinc-400 bg-app-input border border-line-subtle px-2 py-0.5 rounded uppercase tracking-wide">Generated</span>
           <button
+            type="button"
             onClick={() => {
               setInsightsLoading(true);
               getInsights()
@@ -281,37 +280,31 @@ export default function Dashboard() {
                 .catch(() => setInsights([]))
                 .finally(() => setInsightsLoading(false));
             }}
-            className="ml-auto text-xs text-gray-500 hover:text-gray-300 border border-[#2a2a2a] hover:border-[#444] px-3 py-1 rounded-lg transition-all"
+            className="ml-auto text-xs text-zinc-500 hover:text-zinc-300 border border-line-subtle hover:border-zinc-600 px-3 py-1 rounded-md transition-colors"
           >
-            ↻ Refresh
+            Refresh
           </button>
         </div>
         {insightsLoading ? (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {[1,2,3].map(i => <div key={i} className="h-24 bg-[#161616] border border-[#232323] rounded-2xl animate-pulse" />)}
+            {[1,2,3].map(i => <div key={i} className="h-24 bg-app-raised border border-line-subtle rounded-xl animate-pulse" />)}
           </div>
         ) : insights.length === 0 ? (
-          <div className="bg-[#161616] border border-[#232323] rounded-2xl px-5 py-4 text-sm text-gray-500">
-            No insights available yet. Add more invoices to see AI analysis.
+          <div className="bg-app-raised border border-line-subtle rounded-xl px-5 py-4 text-sm text-zinc-500">
+            No insights yet. Add invoices to generate summaries.
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {insights.map((insight, i) => {
-              // Support both string (legacy) and {icon, title, insight} object
-              const icon  = insight?.icon  || '💡';
               const title = insight?.title || `Insight ${i + 1}`;
               const text  = insight?.insight || (typeof insight === 'string' ? insight : '');
               return (
                 <div
                   key={i}
-                  className="bg-[#161616] border border-indigo-900/30 hover:border-indigo-500/40 rounded-2xl p-5 transition-all"
+                  className="bg-app-raised border border-line-subtle hover:border-brand/25 rounded-xl p-5 transition-colors"
                 >
-                  <div className="flex items-center gap-2 mb-3">
-                    <span className="text-xl">{icon}</span>
-                    <p className="text-sm font-semibold text-white">{title}</p>
-                  </div>
-                  <p className="text-sm text-gray-400 leading-relaxed">{text}</p>
-                  <p className="text-[10px] text-indigo-600 mt-3 font-medium uppercase tracking-wider">Gemini AI</p>
+                  <p className="text-sm font-medium text-zinc-100 mb-2">{title}</p>
+                  <p className="text-sm text-zinc-400 leading-relaxed">{text}</p>
                 </div>
               );
             })}
@@ -320,27 +313,26 @@ export default function Dashboard() {
       </div>
 
       {/* Recent invoices */}
-      <div className="bg-[#161616] border border-[#232323] rounded-2xl overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[#232323]">
-          <p className="text-sm font-semibold text-white">Recent Invoices</p>
-          <Link to="/invoices" className="text-xs text-indigo-400 hover:text-indigo-300">View all →</Link>
+      <div className="bg-app-raised border border-line-subtle rounded-xl overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-line-subtle">
+          <p className="text-sm font-medium text-zinc-100">Recent invoices</p>
+          <Link to="/invoices" className="text-xs text-brand hover:text-indigo-300">View all</Link>
         </div>
 
         {loading ? (
           <div className="p-6 space-y-3">
-            {[1,2,3].map(i => <div key={i} className="h-10 bg-[#1e1e1e] rounded-lg animate-pulse" />)}
+            {[1,2,3].map(i => <div key={i} className="h-10 bg-app-input rounded-lg animate-pulse" />)}
           </div>
         ) : invoices.length === 0 ? (
           <div className="p-10 text-center">
-            <p className="text-2xl mb-2">🧾</p>
-            <p className="text-gray-500 text-sm">No invoices yet.</p>
-            <Link to="/invoices" className="text-indigo-400 hover:underline text-xs mt-1 inline-block">Create your first invoice →</Link>
+            <p className="text-zinc-500 text-sm">No invoices yet.</p>
+            <Link to="/invoices" className="text-brand hover:text-indigo-300 text-xs mt-2 inline-block font-medium">Create invoice</Link>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm min-w-[550px]">
               <thead>
-                <tr className="text-[11px] text-gray-500 uppercase tracking-wider border-b border-[#232323]">
+                <tr className="text-[11px] text-zinc-500 uppercase tracking-wide border-b border-line-subtle">
                   {['Invoice #', 'Customer', 'Amount', 'Due', 'Status'].map(h => (
                     <th key={h} className="text-left px-5 py-3 font-medium">{h}</th>
                   ))}
@@ -348,14 +340,14 @@ export default function Dashboard() {
               </thead>
               <tbody>
                 {invoices.slice(0, 6).map((inv, i) => (
-                  <tr key={inv._id} className={`hover:bg-[#1c1c1c] transition-colors ${i < invoices.slice(0,6).length - 1 ? 'border-b border-[#1e1e1e]' : ''}`}>
-                    <td className="px-5 py-3.5 font-mono text-xs text-gray-400">{inv.invoiceNumber}</td>
+                  <tr key={inv._id} className={`hover:bg-app-input/50 transition-colors ${i < invoices.slice(0,6).length - 1 ? 'border-b border-line-subtle' : ''}`}>
+                    <td className="px-5 py-3.5 font-mono text-xs text-zinc-500">{inv.invoiceNumber}</td>
                     <td className="px-5 py-3.5">
-                      <div className="font-medium text-white text-sm">{inv.customerId?.name}</div>
-                      {inv.customerId?.businessName && <div className="text-[11px] text-gray-500">{inv.customerId.businessName}</div>}
+                      <div className="font-medium text-zinc-100 text-sm">{inv.customerId?.name}</div>
+                      {inv.customerId?.businessName && <div className="text-[11px] text-zinc-500">{inv.customerId.businessName}</div>}
                     </td>
-                    <td className="px-5 py-3.5 font-semibold text-white">₹{inv.total?.toLocaleString('en-IN')}</td>
-                    <td className="px-5 py-3.5 text-gray-400 text-xs whitespace-nowrap">{new Date(inv.dueDate).toLocaleDateString('en-IN')}</td>
+                    <td className="px-5 py-3.5 font-medium text-zinc-100 tabular-nums">₹{inv.total?.toLocaleString('en-IN')}</td>
+                    <td className="px-5 py-3.5 text-zinc-500 text-xs whitespace-nowrap">{new Date(inv.dueDate).toLocaleDateString('en-IN')}</td>
                     <td className="px-5 py-3.5">
                       <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full ${STATUS_STYLES[inv.status]}`}>
                         {inv.status.charAt(0).toUpperCase() + inv.status.slice(1)}

@@ -1,6 +1,7 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import Layout from './components/Layout';
+import Landing from './pages/Landing';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
@@ -17,13 +18,13 @@ export default function App() {
     <AuthProvider>
       <Routes>
         {/* Public */}
+        <Route path="/"         element={<Landing />} />
         <Route path="/login"    element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/about"    element={<About />} />
 
         {/* Protected — all share the sidebar Layout */}
         <Route element={<Layout />}>
-          <Route path="/"          element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/invoices"  element={<Invoices />} />
           <Route path="/customers" element={<Customers />} />

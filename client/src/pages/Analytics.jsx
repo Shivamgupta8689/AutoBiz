@@ -10,7 +10,7 @@ const PIE_COLORS = ['#22c55e', '#f59e0b', '#ef4444'];
 const CustomTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null;
   return (
-    <div className="bg-[#1e1e1e] border border-[#333] rounded-xl px-4 py-2.5 text-sm shadow-xl">
+    <div className="bg-app-raised border border-line-subtle rounded-lg px-4 py-2.5 text-sm shadow-brand">
       <p className="text-gray-400 mb-1">{label}</p>
       {payload.map((p, i) => (
         <p key={i} style={{ color: p.color }} className="font-bold">
@@ -93,7 +93,7 @@ export default function Analytics() {
   if (loading) return (
     <main className="p-5 md:p-7 max-w-7xl mx-auto">
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-7">
-        {[1,2,3,4].map(i => <div key={i} className="h-28 bg-[#161616] border border-[#232323] rounded-2xl animate-pulse" />)}
+        {[1,2,3,4].map(i => <div key={i} className="h-28 bg-app-raised border border-line-subtle rounded-xl animate-pulse" />)}
       </div>
     </main>
   );
@@ -101,25 +101,25 @@ export default function Analytics() {
   return (
     <main className="p-5 md:p-7 max-w-7xl mx-auto">
       <div className="mb-7">
-        <h1 className="text-2xl font-bold text-white">Analytics</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Business performance overview</p>
+        <h1 className="text-xl font-semibold text-zinc-100 tracking-tight">Analytics</h1>
+        <p className="text-sm text-zinc-500 mt-0.5">Revenue and collection</p>
       </div>
 
       {/* KPI strip */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-7">
         {[
-          { label: 'Total Revenue',     value: `₹${totalRevenue.toLocaleString('en-IN')}`,  icon: '💰', sub: 'All invoices' },
-          { label: 'Collected',         value: `₹${paidRevenue.toLocaleString('en-IN')}`,   icon: '✅', sub: 'Paid invoices' },
-          { label: 'Collection Rate',   value: `${collectionRate}%`,                         icon: '📊', sub: 'Of total billed' },
-          { label: 'Avg Invoice Value', value: invoices.length > 0 ? `₹${Math.round(totalRevenue / invoices.length).toLocaleString('en-IN')}` : '₹0', icon: '📋', sub: 'Per invoice' },
-        ].map(({ label, value, icon, sub }) => (
-          <div key={label} className="bg-[#161616] border border-[#232323] rounded-2xl p-5 hover:border-indigo-500/30 transition-all">
+          { label: 'Total revenue',     value: `₹${totalRevenue.toLocaleString('en-IN')}`,  abbr: 'Σ', sub: 'All invoices' },
+          { label: 'Collected',         value: `₹${paidRevenue.toLocaleString('en-IN')}`,   abbr: '✓', sub: 'Paid invoices' },
+          { label: 'Collection rate',   value: `${collectionRate}%`,                         abbr: '%', sub: 'Of total billed' },
+          { label: 'Avg. invoice', value: invoices.length > 0 ? `₹${Math.round(totalRevenue / invoices.length).toLocaleString('en-IN')}` : '₹0', abbr: 'μ', sub: 'Per invoice' },
+        ].map(({ label, value, abbr, sub }) => (
+          <div key={label} className="bg-app-raised border border-line-subtle rounded-xl p-5 hover:border-brand/20 transition-colors">
             <div className="flex items-start justify-between mb-3">
-              <p className="text-xs text-gray-500 uppercase tracking-wider font-medium">{label}</p>
-              <span className="text-xl">{icon}</span>
+              <p className="text-[11px] text-zinc-500 uppercase tracking-wide font-medium">{label}</p>
+              <span className="text-[10px] font-semibold text-brand tabular-nums px-1.5 py-0.5 rounded bg-brand-muted border border-brand/20">{abbr}</span>
             </div>
-            <p className="text-2xl font-bold text-white">{value}</p>
-            <p className="text-xs text-gray-600 mt-1">{sub}</p>
+            <p className="text-2xl font-semibold text-zinc-100 tabular-nums">{value}</p>
+            <p className="text-xs text-zinc-600 mt-1">{sub}</p>
           </div>
         ))}
       </div>
@@ -127,7 +127,7 @@ export default function Analytics() {
       {/* Charts row 1 */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
         {/* Monthly revenue bar */}
-        <div className="lg:col-span-2 bg-[#161616] border border-[#232323] rounded-2xl p-5">
+        <div className="lg:col-span-2 bg-app-raised border border-line-subtle rounded-xl p-5">
           <p className="text-sm font-semibold text-white mb-1">Monthly Revenue</p>
           <p className="text-xs text-gray-500 mb-4">Last 6 months</p>
           <ResponsiveContainer width="100%" height={220}>
@@ -142,7 +142,7 @@ export default function Analytics() {
         </div>
 
         {/* Status donut */}
-        <div className="bg-[#161616] border border-[#232323] rounded-2xl p-5">
+        <div className="bg-app-raised border border-line-subtle rounded-xl p-5">
           <p className="text-sm font-semibold text-white mb-1">Invoice Status</p>
           <p className="text-xs text-gray-500 mb-3">By count</p>
           {statusData.length === 0 ? (
@@ -154,7 +154,7 @@ export default function Analytics() {
                   {statusData.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % 3]} stroke="transparent" />)}
                 </Pie>
                 <Tooltip content={({ active, payload }) => active && payload?.length ? (
-                  <div className="bg-[#1e1e1e] border border-[#333] rounded-xl px-3 py-2 text-sm shadow-xl">
+                  <div className="bg-app-raised border border-line-subtle rounded-lg px-3 py-2 text-sm shadow-brand">
                     <p className="text-white">{payload[0].name}: <span className="font-bold">{payload[0].value}</span></p>
                   </div>
                 ) : null} />
@@ -168,7 +168,7 @@ export default function Analytics() {
       {/* Charts row 2 */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Cumulative line */}
-        <div className="lg:col-span-2 bg-[#161616] border border-[#232323] rounded-2xl p-5">
+        <div className="lg:col-span-2 bg-app-raised border border-line-subtle rounded-xl p-5">
           <p className="text-sm font-semibold text-white mb-1">Cumulative Billing</p>
           <p className="text-xs text-gray-500 mb-4">Running total over 30 days</p>
           <ResponsiveContainer width="100%" height={200}>
@@ -183,7 +183,7 @@ export default function Analytics() {
         </div>
 
         {/* Top customers */}
-        <div className="bg-[#161616] border border-[#232323] rounded-2xl p-5">
+        <div className="bg-app-raised border border-line-subtle rounded-xl p-5">
           <p className="text-sm font-semibold text-white mb-4">Top Customers</p>
           {topCustomers.length === 0 ? (
             <div className="flex items-center justify-center h-40 text-gray-600 text-sm">No data</div>
@@ -197,8 +197,8 @@ export default function Analytics() {
                       <span className="text-xs text-gray-300 font-medium truncate">{c.name}</span>
                       <span className="text-xs text-gray-500 font-medium ml-2">₹{c.amount.toLocaleString('en-IN')}</span>
                     </div>
-                    <div className="h-1.5 bg-[#2a2a2a] rounded-full overflow-hidden">
-                      <div className="h-full rounded-full bg-indigo-500" style={{ width: `${pct}%`, transition: 'width 1s ease-out' }} />
+                    <div className="h-1.5 bg-app-input rounded-full overflow-hidden">
+                      <div className="h-full rounded-full bg-brand" style={{ width: `${pct}%`, transition: 'width 1s ease-out' }} />
                     </div>
                   </div>
                 );

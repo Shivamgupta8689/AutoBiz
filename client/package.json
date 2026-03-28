@@ -1,7 +1,7 @@
 {
   "name": "smart-invoicing-client",
   "version": "1.0.0",
-  "description": "Smart Invoicing Assistant — React Frontend",
+  "description": "AutoBiz — React frontend",
   "type": "module",
   "scripts": {
     "dev": "vite",

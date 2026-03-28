@@ -34,7 +34,7 @@ const generatePDF = (invoice) => {
 
   doc.setFontSize(9);
   doc.setTextColor(120, 120, 120);
-  doc.text('Smart Invoicing Assistant', 14, 30);
+  doc.text('Smart Invoicing', 14, 30);
   doc.text('GST Compliant Invoice', 14, 35);
 
   // Invoice meta (right)
@@ -270,7 +270,7 @@ export default function Invoices() {
 
   const tabCount = (t) => t === 'All' ? invoices.length : invoices.filter(i => i.status === t.toLowerCase()).length;
 
-  const inputCls = "w-full bg-[#1e1e1e] border border-[#2a2a2a] rounded-xl px-3 py-2.5 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500";
+  const inputCls = "w-full bg-app-input border border-line-subtle rounded-lg px-3 py-2.5 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand/25";
 
   return (
     <main className="p-5 md:p-7 max-w-7xl mx-auto">
@@ -278,7 +278,7 @@ export default function Invoices() {
 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-7">
         <div>
-          <h1 className="text-2xl font-bold text-white">Invoices</h1>
+          <h1 className="text-xl font-semibold text-zinc-100 tracking-tight">Invoices</h1>
           <p className="text-sm text-gray-500 mt-0.5">{invoices.length} total invoices</p>
         </div>
         <div className="flex items-center gap-2">
@@ -289,7 +289,7 @@ export default function Invoices() {
             className={`inline-flex items-center gap-2 font-semibold px-4 py-2.5 rounded-xl text-sm transition-all border ${
               voiceState === 'listening'
                 ? 'bg-red-600 border-red-500 text-white animate-pulse'
-                : 'bg-[#161616] border-[#2a2a2a] text-gray-400 hover:border-indigo-500 hover:text-indigo-300'
+                : 'bg-app-raised border-line-subtle text-zinc-400 hover:border-brand/40 hover:text-brand'
             }`}
           >
             <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
@@ -300,7 +300,7 @@ export default function Invoices() {
 
           <button
             onClick={() => { setShowForm(v => !v); if (showForm) { stopVoice(); } }}
-            className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-5 py-2.5 rounded-xl shadow-lg shadow-indigo-500/20 transition-all text-sm"
+            className="inline-flex items-center gap-2 bg-brand hover:bg-brand-hover text-white font-medium px-5 py-2.5 rounded-lg shadow-brand-md transition-colors text-sm"
           >
             {showForm ? '× Cancel' : '+ Create Invoice'}
           </button>
@@ -315,7 +315,7 @@ export default function Invoices() {
 
       {/* Create form */}
       {showForm && (
-        <form onSubmit={handleSubmit} className="bg-[#161616] border border-[#2a2a2a] rounded-2xl p-6 mb-6">
+        <form onSubmit={handleSubmit} className="bg-app-raised border border-line-subtle rounded-xl p-6 mb-6">
           <div className="flex items-center justify-between mb-5">
             <h3 className="text-base font-semibold text-white">New Invoice</h3>
             <span className="text-xs text-gray-600">💡 Use the Voice button to fill this form by speaking</span>
@@ -325,7 +325,7 @@ export default function Invoices() {
           {voiceState !== 'idle' && voiceHint && (
             <div className={`rounded-xl px-4 py-2.5 mb-4 text-xs font-medium flex items-center gap-2 ${
               voiceState === 'listening' ? 'bg-red-500/10 border border-red-500/30 text-red-300' :
-              voiceState === 'parsing'   ? 'bg-indigo-500/10 border border-indigo-500/30 text-indigo-300' :
+              voiceState === 'parsing'   ? 'bg-brand-muted border border-brand/30 text-brand' :
               voiceState === 'done'      ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-300' :
                                           'bg-amber-500/10 border border-amber-500/30 text-amber-300'
             }`}>
@@ -356,7 +356,7 @@ export default function Invoices() {
           <div className="mb-5">
             <div className="flex items-center justify-between mb-2">
               <label className="text-xs font-medium text-gray-500">Items</label>
-              <button type="button" onClick={addItem} className="text-xs text-indigo-400 hover:text-indigo-300 font-medium">+ Add item</button>
+              <button type="button" onClick={addItem} className="text-xs text-brand hover:text-indigo-300 font-medium">+ Add item</button>
             </div>
             <div className="space-y-2">
               {form.items.map((item, idx) => (
@@ -374,11 +374,11 @@ export default function Invoices() {
           <div className="bg-[#0f0f0f] border border-[#2a2a2a] rounded-xl px-5 py-3 mb-5 space-y-1 text-right">
             <div className="text-xs text-gray-500">Subtotal: <span className="text-gray-300 font-medium">₹{subtotal.toLocaleString('en-IN')}</span></div>
             <div className="text-xs text-gray-500">GST ({form.gstPercent}%): <span className="text-gray-300 font-medium">₹{gstAmount.toLocaleString('en-IN')}</span></div>
-            <div className="text-base font-bold text-indigo-400">Total: ₹{total.toLocaleString('en-IN')}</div>
+            <div className="text-base font-semibold text-brand tabular-nums">Total: ₹{total.toLocaleString('en-IN')}</div>
           </div>
 
           <div className="flex justify-end">
-            <button type="submit" disabled={submitting} className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-semibold px-6 py-2.5 rounded-xl text-sm shadow-lg shadow-indigo-500/20 transition-all">
+            <button type="submit" disabled={submitting} className="bg-brand hover:bg-brand-hover disabled:opacity-50 text-white font-medium px-6 py-2.5 rounded-lg text-sm shadow-brand-md transition-colors">
               {submitting ? 'Creating...' : 'Create Invoice'}
             </button>
           </div>
@@ -386,14 +386,14 @@ export default function Invoices() {
       )}
 
       {/* Filter tabs */}
-      <div className="flex gap-1 mb-5 bg-[#161616] border border-[#232323] rounded-xl p-1 w-fit">
+      <div className="flex gap-1 mb-5 bg-app-raised border border-line-subtle rounded-lg p-1 w-fit">
         {TABS.map(t => (
           <button
             key={t}
             onClick={() => setTab(t)}
             className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${
               tab === t
-                ? 'bg-indigo-600 text-white shadow-sm'
+                ? 'bg-brand text-white shadow-brand'
                 : 'text-gray-400 hover:text-white'
             }`}
           >
@@ -408,17 +408,17 @@ export default function Invoices() {
       {/* Invoice list */}
       {loading ? (
         <div className="space-y-3">
-          {[1,2,3].map(i => <div key={i} className="h-24 bg-[#161616] border border-[#232323] rounded-2xl animate-pulse" />)}
+          {[1,2,3].map(i => <div key={i} className="h-24 bg-app-raised border border-line-subtle rounded-xl animate-pulse" />)}
         </div>
       ) : filtered.length === 0 ? (
-        <div className="bg-[#161616] border border-[#232323] rounded-2xl p-12 text-center">
+        <div className="bg-app-raised border border-line-subtle rounded-xl p-12 text-center">
           <p className="text-3xl mb-3">🧾</p>
           <p className="text-gray-400 text-sm font-medium">No {tab.toLowerCase()} invoices.</p>
         </div>
       ) : (
         <div className="space-y-3">
           {filtered.map(inv => (
-            <div key={inv._id} className="bg-[#161616] border border-[#232323] hover:border-[#333] rounded-2xl p-5 transition-all group">
+            <div key={inv._id} className="bg-app-raised border border-line-subtle hover:border-zinc-600 rounded-xl p-5 transition-colors group">
               <div className="flex flex-col lg:flex-row lg:items-center gap-4">
                 {/* Left: info */}
                 <div className="flex-1 min-w-0">
@@ -441,7 +441,7 @@ export default function Invoices() {
 
                 {/* QR code */}
                 <div className="shrink-0 hidden sm:block">
-                  <div className="bg-white rounded-xl p-1.5 cursor-pointer hover:shadow-lg hover:shadow-indigo-500/20 transition-all" onClick={() => setQrInvoice(inv)}>
+                  <div className="bg-white rounded-lg p-1.5 cursor-pointer hover:shadow-md transition-shadow" onClick={() => setQrInvoice(inv)}>
                     <QRCodeSVG
                       value={`upi://pay?pa=demo@kirana&pn=${encodeURIComponent(inv.customerId?.name||'')}&am=${inv.total}&tn=${encodeURIComponent(inv.invoiceNumber)}&cu=INR`}
                       size={56}
@@ -455,7 +455,7 @@ export default function Invoices() {
                   <select
                     value={inv.status}
                     onChange={e => handleStatusChange(inv._id, e.target.value)}
-                    className="bg-[#1e1e1e] border border-[#2a2a2a] text-gray-300 text-xs rounded-lg px-2 py-1.5 cursor-pointer focus:outline-none focus:border-indigo-500"
+                    className="bg-app-input border border-line-subtle text-zinc-300 text-xs rounded-lg px-2 py-1.5 cursor-pointer focus:outline-none focus:border-brand"
                   >
                     <option value="unpaid">Unpaid</option>
                     <option value="paid">Paid</option>
@@ -463,7 +463,7 @@ export default function Invoices() {
                   </select>
                   <button
                     onClick={() => generatePDF(inv)}
-                    className="flex items-center gap-1.5 bg-[#1e1e1e] hover:bg-[#252525] border border-[#2a2a2a] hover:border-indigo-500/50 text-gray-400 hover:text-indigo-300 text-xs px-3 py-1.5 rounded-lg font-medium transition-all"
+                    className="flex items-center gap-1.5 bg-app-input hover:bg-app-raised border border-line-subtle hover:border-brand/40 text-zinc-400 hover:text-brand text-xs px-3 py-1.5 rounded-lg font-medium transition-colors"
                   >
                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
                     PDF

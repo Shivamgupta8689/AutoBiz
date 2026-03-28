@@ -9,7 +9,7 @@ const BADGE = {
 const CARD_BG = {
   SEND:     'bg-[#0d1a0f] border-emerald-900/40',
   ESCALATE: 'bg-[#1a0d0d] border-red-900/40',
-  SUPPRESS: 'bg-[#161616] border-[#2a2a2a]',
+  SUPPRESS: 'bg-app-raised border-line-subtle',
   DELAY:    'bg-[#1a1600] border-amber-900/40',
 };
 
