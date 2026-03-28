@@ -3,7 +3,7 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend,
 } from 'recharts';
-import { getInvoices } from '../services/api';
+import { getInvoices, getInsights } from '../services/api';
 import { Link } from 'react-router-dom';
 
 const STATUS_STYLES = {
@@ -80,10 +80,28 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [lastRun, setLastRun] = useState(() => localStorage.getItem('lastReminderRun'));
 
+  // Busy mode — persisted in localStorage
+  const [busyMode, setBusyMode] = useState(() => localStorage.getItem('busyMode') === 'true');
+
+  // AI Insights
+  const [insights, setInsights] = useState([]);
+  const [insightsLoading, setInsightsLoading] = useState(true);
+
+  const toggleBusyMode = () => {
+    const next = !busyMode;
+    setBusyMode(next);
+    localStorage.setItem('busyMode', String(next));
+  };
+
   useEffect(() => {
     getInvoices()
       .then(({ data }) => setInvoices(data))
       .finally(() => setLoading(false));
+
+    getInsights()
+      .then(({ data }) => setInsights(data.insights || []))
+      .catch(() => setInsights([]))
+      .finally(() => setInsightsLoading(false));
   }, []);
 
   // Stats
@@ -134,28 +152,64 @@ export default function Dashboard() {
   return (
     <main className="p-5 md:p-7 max-w-7xl mx-auto">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-7">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
         <div>
           <h1 className="text-2xl font-bold text-white">Dashboard</h1>
           <p className="text-sm text-gray-500 mt-0.5">Track invoices and business performance</p>
         </div>
-        <Link
-          to="/reminders"
-          className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-5 py-2.5 rounded-xl shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30 transition-all text-sm"
-        >
-          <span>⚡</span> Run Smart Reminders
-        </Link>
+        <div className="flex items-center gap-3">
+          {/* Busy Mode Toggle */}
+          <button
+            onClick={toggleBusyMode}
+            className={`inline-flex items-center gap-2 font-semibold px-4 py-2.5 rounded-xl text-sm transition-all border ${
+              busyMode
+                ? 'bg-orange-500/20 border-orange-500/50 text-orange-300'
+                : 'bg-[#161616] border-[#2a2a2a] text-gray-400 hover:border-[#444] hover:text-gray-200'
+            }`}
+          >
+            <span className={`w-2 h-2 rounded-full ${busyMode ? 'bg-orange-400 animate-pulse' : 'bg-gray-600'}`} />
+            Busy Mode {busyMode ? 'ON' : 'OFF'}
+          </button>
+
+          <Link
+            to="/reminders"
+            className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-5 py-2.5 rounded-xl shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30 transition-all text-sm"
+          >
+            <span>⚡</span> Run Smart Reminders
+          </Link>
+        </div>
       </div>
 
+      {/* Busy mode warning banner */}
+      {busyMode && (
+        <div className="flex items-center gap-3 bg-orange-500/10 border border-orange-500/30 rounded-xl px-4 py-3 mb-5">
+          <span className="text-orange-400 text-lg">⏸</span>
+          <div>
+            <p className="text-sm font-semibold text-orange-300">Busy Mode is ON — All reminders are paused</p>
+            <p className="text-xs text-orange-400/70 mt-0.5">Reminders will show as SUPPRESS until you turn this off.</p>
+          </div>
+          <button
+            onClick={toggleBusyMode}
+            className="ml-auto text-xs text-orange-400 hover:text-orange-200 font-medium border border-orange-500/30 px-3 py-1 rounded-lg transition-all"
+          >
+            Turn Off
+          </button>
+        </div>
+      )}
+
       {/* Automation status bar */}
-      <div className="flex items-center gap-3 bg-[#0d1a0d] border border-emerald-900/50 rounded-xl px-4 py-2.5 mb-7">
+      <div className={`flex items-center gap-3 rounded-xl px-4 py-2.5 mb-7 ${
+        busyMode
+          ? 'bg-orange-950/30 border border-orange-900/40'
+          : 'bg-[#0d1a0d] border border-emerald-900/50'
+      }`}>
         <span className="relative flex h-2 w-2">
-          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-          <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+          <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${busyMode ? 'bg-orange-400' : 'bg-emerald-400'}`} />
+          <span className={`relative inline-flex rounded-full h-2 w-2 ${busyMode ? 'bg-orange-500' : 'bg-emerald-500'}`} />
         </span>
-        <p className="text-xs font-medium text-emerald-400">
-          Auto-reminder engine: <span className="font-bold">ACTIVE</span>
-          <span className="text-emerald-600 ml-2">— Last run: {lastRunText}</span>
+        <p className={`text-xs font-medium ${busyMode ? 'text-orange-400' : 'text-emerald-400'}`}>
+          Auto-reminder engine: <span className="font-bold">{busyMode ? 'PAUSED' : 'ACTIVE'}</span>
+          <span className={`ml-2 ${busyMode ? 'text-orange-600' : 'text-emerald-600'}`}>— Last run: {lastRunText}</span>
         </p>
         <div className="ml-auto text-xs text-gray-600">Rules: SUPPRESS · DELAY · SEND · ESCALATE</div>
       </div>
@@ -178,7 +232,6 @@ export default function Dashboard() {
 
       {/* Charts row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-7">
-        {/* Line chart — wider */}
         <div className="lg:col-span-2 bg-[#161616] border border-[#232323] rounded-2xl p-5">
           <p className="text-sm font-semibold text-white mb-1">Invoice Volume — Last 30 Days</p>
           <p className="text-xs text-gray-500 mb-4">Total billed per day</p>
@@ -193,7 +246,6 @@ export default function Dashboard() {
           </ResponsiveContainer>
         </div>
 
-        {/* Donut chart */}
         <div className="bg-[#161616] border border-[#232323] rounded-2xl p-5 flex flex-col">
           <p className="text-sm font-semibold text-white mb-1">Invoice Status</p>
           <p className="text-xs text-gray-500 mb-3">Distribution by status</p>
@@ -213,6 +265,38 @@ export default function Dashboard() {
             </div>
           )}
         </div>
+      </div>
+
+      {/* AI Insights */}
+      <div className="mb-7">
+        <div className="flex items-center gap-2 mb-4">
+          <h2 className="text-base font-semibold text-white">AI Insights</h2>
+          <span className="text-xs text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 px-2 py-0.5 rounded-full">Gemini</span>
+        </div>
+        {insightsLoading ? (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {[1,2,3].map(i => <div key={i} className="h-24 bg-[#161616] border border-[#232323] rounded-2xl animate-pulse" />)}
+          </div>
+        ) : insights.length === 0 ? (
+          <div className="bg-[#161616] border border-[#232323] rounded-2xl px-5 py-4 text-sm text-gray-500">
+            No insights available yet. Add more invoices to see AI analysis.
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {insights.map((insight, i) => (
+              <div
+                key={i}
+                className="bg-[#161616] border border-indigo-900/30 hover:border-indigo-500/40 rounded-2xl p-5 transition-all group"
+              >
+                <div className="flex items-start gap-3">
+                  <span className="text-xl shrink-0 mt-0.5">💡</span>
+                  <p className="text-sm text-gray-300 leading-relaxed">{insight}</p>
+                </div>
+                <p className="text-[10px] text-indigo-600 mt-3 font-medium uppercase tracking-wider">Insight {i + 1}</p>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Recent invoices */}

@@ -9,6 +9,15 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// Auth
+export const trackActivity = () => api.patch('/auth/activity');
+
+// Insights
+export const getInsights = () => api.get('/insights');
+
+// Customer health
+export const getCustomerHealth = (id) => api.get(`/customers/${id}/health`);
+
 // Customers
 export const getCustomers = () => api.get('/customers');
 export const createCustomer = (data) => api.post('/customers', data);

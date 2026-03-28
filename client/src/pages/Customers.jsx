@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { getCustomers, createCustomer, deleteCustomer } from '../services/api';
+import { getCustomers, createCustomer, deleteCustomer, getCustomerHealth } from '../services/api';
 
 const emptyForm = { name: '', phone: '', email: '', businessName: '' };
 
@@ -7,6 +7,7 @@ const inputCls = "w-full bg-[#1e1e1e] border border-[#2a2a2a] rounded-xl px-3 py
 
 export default function Customers() {
   const [customers, setCustomers] = useState([]);
+  const [healthScores, setHealthScores] = useState({}); // { [customerId]: { score, label, color } }
   const [form, setForm] = useState(emptyForm);
   const [showForm, setShowForm] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -15,7 +16,15 @@ export default function Customers() {
 
   useEffect(() => {
     getCustomers()
-      .then(({ data }) => setCustomers(data))
+      .then(({ data }) => {
+        setCustomers(data);
+        // Fetch health score for each customer in parallel (fire-and-forget)
+        data.forEach(c => {
+          getCustomerHealth(c._id)
+            .then(({ data: h }) => setHealthScores(prev => ({ ...prev, [c._id]: h })))
+            .catch(() => {});
+        });
+      })
       .catch(() => setError('Failed to load customers'))
       .finally(() => setLoading(false));
   }, []);
@@ -40,6 +49,12 @@ export default function Customers() {
       await deleteCustomer(id);
       setCustomers(p => p.filter(c => c._id !== id));
     } catch { setError('Failed to delete customer'); }
+  };
+
+  const healthBadgeCls = (color) => {
+    if (color === 'green')  return 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/25';
+    if (color === 'yellow') return 'bg-amber-500/15 text-amber-400 border border-amber-500/25';
+    return 'bg-red-500/15 text-red-400 border border-red-500/25';
   };
 
   // Avatar colour from name
@@ -132,6 +147,15 @@ export default function Customers() {
                   </div>
                 )}
               </div>
+              {/* Health score badge */}
+              {healthScores[c._id] && (
+                <div
+                  className={`shrink-0 text-[11px] font-bold px-2.5 py-1 rounded-full ${healthBadgeCls(healthScores[c._id].color)}`}
+                  title={`Payment rate: ${healthScores[c._id].breakdown?.paymentRate ?? 0}% · Overdue: ${healthScores[c._id].breakdown?.overdue ?? 0}`}
+                >
+                  {healthScores[c._id].score} {healthScores[c._id].label}
+                </div>
+              )}
               <button onClick={() => handleDelete(c._id)} className="opacity-0 group-hover:opacity-100 text-gray-600 hover:text-red-400 text-sm px-2 py-1 rounded-lg transition-all shrink-0">
                 ×
               </button>

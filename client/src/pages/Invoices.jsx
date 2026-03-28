@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { getInvoices, createInvoice, updateInvoiceStatus, deleteInvoice, getCustomers } from '../services/api';
+import api from '../services/api';
 
 const STATUS_STYLES = {
   paid:    'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20',
@@ -126,6 +127,96 @@ export default function Invoices() {
   const [error, setError] = useState('');
   const [qrInvoice, setQrInvoice] = useState(null);
 
+  // ── Voice input state ──────────────────────────────────────────────────────
+  const [voiceState, setVoiceState] = useState('idle'); // idle | listening | parsing | done | error
+  const [voiceHint, setVoiceHint] = useState('');
+  const recognitionRef = useRef(null);
+
+  const startVoiceInput = () => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      setVoiceHint('Voice input not supported in this browser. Try Chrome.');
+      setVoiceState('error');
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognitionRef.current = recognition;
+    recognition.lang = 'en-IN';
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+
+    recognition.onstart = () => {
+      setVoiceState('listening');
+      setVoiceHint('Listening... Say something like "Create invoice for Raj 5000 rupees"');
+    };
+
+    recognition.onresult = async (event) => {
+      const transcript = event.results[0][0].transcript;
+      setVoiceState('parsing');
+      setVoiceHint(`Heard: "${transcript}" — parsing...`);
+
+      try {
+        const { data } = await api.post('/voice/parse', { command: transcript });
+        if (!data.success) {
+          setVoiceHint(`Could not parse: ${data.error}`);
+          setVoiceState('error');
+          return;
+        }
+
+        const { customerName, amount, description, gstPercent, dueInDays } = data.parsed;
+
+        // Find matching customer (case-insensitive partial match)
+        const matchedCustomer = customers.find(c =>
+          c.name.toLowerCase().includes(customerName?.toLowerCase() || '__none__')
+        );
+
+        const dueDate = new Date(Date.now() + (dueInDays ?? 30) * 24 * 60 * 60 * 1000)
+          .toISOString().split('T')[0];
+
+        setForm(prev => ({
+          ...prev,
+          customerId: matchedCustomer?._id || prev.customerId,
+          gstPercent: gstPercent ?? 18,
+          dueDate,
+          items: [{
+            name: description || (amount ? `Invoice item` : prev.items[0]?.name || ''),
+            qty: 1,
+            rate: amount || prev.items[0]?.rate || '',
+          }],
+        }));
+
+        setVoiceState('done');
+        setVoiceHint(
+          `Filled! Customer: ${matchedCustomer?.name || customerName || '(select manually)'} · ` +
+          `Amount: ₹${Number(amount).toLocaleString('en-IN')} · ` +
+          `GST: ${gstPercent}%`
+        );
+      } catch {
+        setVoiceHint('Parsing failed. Please fill the form manually.');
+        setVoiceState('error');
+      }
+    };
+
+    recognition.onerror = (e) => {
+      setVoiceHint(`Mic error: ${e.error}. Try again.`);
+      setVoiceState('error');
+    };
+
+    recognition.onend = () => {
+      if (voiceState === 'listening') setVoiceState('idle');
+    };
+
+    setShowForm(true);
+    recognition.start();
+  };
+
+  const stopVoice = () => {
+    recognitionRef.current?.stop();
+    setVoiceState('idle');
+    setVoiceHint('');
+  };
+
   const fetchData = async () => {
     try {
       const [{ data: inv }, { data: cust }] = await Promise.all([getInvoices(), getCustomers()]);
@@ -190,12 +281,30 @@ export default function Invoices() {
           <h1 className="text-2xl font-bold text-white">Invoices</h1>
           <p className="text-sm text-gray-500 mt-0.5">{invoices.length} total invoices</p>
         </div>
-        <button
-          onClick={() => setShowForm(v => !v)}
-          className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-5 py-2.5 rounded-xl shadow-lg shadow-indigo-500/20 transition-all text-sm"
-        >
-          {showForm ? '× Cancel' : '+ Create Invoice'}
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Voice input button */}
+          <button
+            onClick={voiceState === 'listening' ? stopVoice : startVoiceInput}
+            title="Voice input — say 'Create invoice for Raj 5000'"
+            className={`inline-flex items-center gap-2 font-semibold px-4 py-2.5 rounded-xl text-sm transition-all border ${
+              voiceState === 'listening'
+                ? 'bg-red-600 border-red-500 text-white animate-pulse'
+                : 'bg-[#161616] border-[#2a2a2a] text-gray-400 hover:border-indigo-500 hover:text-indigo-300'
+            }`}
+          >
+            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M12 1a4 4 0 0 1 4 4v7a4 4 0 0 1-8 0V5a4 4 0 0 1 4-4zm7 10a1 1 0 1 1 2 0 9 9 0 0 1-18 0 1 1 0 1 1 2 0 7 7 0 0 0 14 0zm-8 9h2v2h-2v-2z"/>
+            </svg>
+            {voiceState === 'listening' ? 'Stop' : 'Voice'}
+          </button>
+
+          <button
+            onClick={() => { setShowForm(v => !v); if (showForm) { stopVoice(); } }}
+            className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-5 py-2.5 rounded-xl shadow-lg shadow-indigo-500/20 transition-all text-sm"
+          >
+            {showForm ? '× Cancel' : '+ Create Invoice'}
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -207,7 +316,23 @@ export default function Invoices() {
       {/* Create form */}
       {showForm && (
         <form onSubmit={handleSubmit} className="bg-[#161616] border border-[#2a2a2a] rounded-2xl p-6 mb-6">
-          <h3 className="text-base font-semibold text-white mb-5">New Invoice</h3>
+          <div className="flex items-center justify-between mb-5">
+            <h3 className="text-base font-semibold text-white">New Invoice</h3>
+            <span className="text-xs text-gray-600">💡 Use the Voice button to fill this form by speaking</span>
+          </div>
+
+          {/* Voice feedback banner */}
+          {voiceState !== 'idle' && voiceHint && (
+            <div className={`rounded-xl px-4 py-2.5 mb-4 text-xs font-medium flex items-center gap-2 ${
+              voiceState === 'listening' ? 'bg-red-500/10 border border-red-500/30 text-red-300' :
+              voiceState === 'parsing'   ? 'bg-indigo-500/10 border border-indigo-500/30 text-indigo-300' :
+              voiceState === 'done'      ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-300' :
+                                          'bg-amber-500/10 border border-amber-500/30 text-amber-300'
+            }`}>
+              <span>{voiceState === 'listening' ? '🎙' : voiceState === 'done' ? '✓' : voiceState === 'parsing' ? '⏳' : '⚠'}</span>
+              {voiceHint}
+            </div>
+          )}
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-5">
             <div>

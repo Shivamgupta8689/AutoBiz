@@ -45,6 +45,10 @@ const invoiceSchema = new mongoose.Schema({
     type: Date,
     default: null,
   },
+  ignoredCount: {
+    type: Number,
+    default: 0,
+  },
   createdAt: {
     type: Date,
     default: Date.now,

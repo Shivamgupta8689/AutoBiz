@@ -1,4 +1,6 @@
 const Invoice = require('../models/Invoice');
+const Customer = require('../models/Customer');
+const { handleInvoiceCreated, handlePaymentReceived } = require('../services/automationEngine');
 
 // Auto-generate invoice number: INV-YYYYMMDD-XXXX
 const generateInvoiceNumber = async () => {
@@ -38,7 +40,10 @@ const create = async (req, res) => {
     });
 
     const populated = await invoice.populate('customerId', 'name businessName phone email');
-    res.status(201).json(populated);
+
+    // Fire automation: generate WhatsApp notification payload (non-blocking)
+    const automationResult = handleInvoiceCreated(populated, populated.customerId);
+    res.status(201).json({ ...populated.toObject(), automation: automationResult });
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
@@ -72,6 +77,18 @@ const updateStatus = async (req, res) => {
     return res.status(400).json({ message: 'Invalid status value' });
 
   try {
+    // If marking as paid, use automation engine (it updates status + clears reminders)
+    if (status === 'paid') {
+      // Verify ownership first
+      const owned = await Invoice.exists({ _id: req.params.id, userId: req.user._id });
+      if (!owned) return res.status(404).json({ message: 'Invoice not found' });
+
+      const automationResult = await handlePaymentReceived(req.params.id);
+      const invoice = await Invoice.findById(req.params.id)
+        .populate('customerId', 'name businessName phone email');
+      return res.json({ ...invoice.toObject(), automation: automationResult });
+    }
+
     const invoice = await Invoice.findOneAndUpdate(
       { _id: req.params.id, userId: req.user._id },
       { status },

@@ -56,4 +56,14 @@ const login = async (req, res) => {
   }
 };
 
-module.exports = { register, login };
+// PATCH /api/auth/activity  — called by frontend on every route change
+const trackActivity = async (req, res) => {
+  try {
+    await User.findByIdAndUpdate(req.user._id, { lastActiveAt: new Date() });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+};
+
+module.exports = { register, login, trackActivity };

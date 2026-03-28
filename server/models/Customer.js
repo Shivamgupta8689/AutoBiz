@@ -27,6 +27,14 @@ const customerSchema = new mongoose.Schema({
     trim: true,
     default: '',
   },
+  lastActiveAt: {
+    type: Date,
+    default: null,
+  },
+  reminderIgnoreCount: {
+    type: Number,
+    default: 0,
+  },
   createdAt: {
     type: Date,
     default: Date.now,

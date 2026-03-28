@@ -8,10 +8,45 @@ const LANGUAGE_INSTRUCTIONS = {
   Tamil: 'Write entirely in Tamil using English script. Example: "Ungal payment innuma varavillai."',
 };
 
+// Fallback messages when Gemini is unavailable — keyed by language + decision
+const FALLBACK_MESSAGES = {
+  Hinglish: {
+    SEND:     (name, inv, amt) => `Hi ${name} bhai! 🙏\nInvoice #${inv} ke ₹${amt} abhi bhi pending hain.\nPlease jaldi payment kar do. Shukriya!`,
+    ESCALATE: (name, inv, amt) => `${name} ji, yeh urgent hai! ⚠️\nInvoice #${inv} ka ₹${amt} kaafi time se overdue hai.\nAaj hi payment karein, warna aage action lena padega.`,
+  },
+  English: {
+    SEND:     (name, inv, amt) => `Hi ${name},\nThis is a gentle reminder that Invoice #${inv} for ₹${amt} is due.\nKindly make the payment at your earliest convenience. Thank you!`,
+    ESCALATE: (name, inv, amt) => `Dear ${name},\nInvoice #${inv} for ₹${amt} is significantly overdue. ⚠️\nImmediate payment is required to avoid further escalation. Please contact us if there's an issue.`,
+  },
+  Hindi: {
+    SEND:     (name, inv, amt) => `${name} ji, namaste! 🙏\nInvoice #${inv} ki ₹${amt} rashi baaki hai.\nKripya jald se jald bhugtan karein. Dhanyavaad!`,
+    ESCALATE: (name, inv, amt) => `${name} ji, yeh ek ati-aavashyak soochna hai! ⚠️\nInvoice #${inv} ki ₹${amt} rashi kafi samay se baki hai.\nAaj hi bhugtan karein.`,
+  },
+  Marathi: {
+    SEND:     (name, inv, amt) => `${name} ji, namaskar! 🙏\nInvoice #${inv} chi ₹${amt} rakkam baaki ahe.\nKrupaya lavkar payment kara. Dhanyavaad!`,
+    ESCALATE: (name, inv, amt) => `${name} ji, he ati-mahatvache ahe! ⚠️\nInvoice #${inv} chi ₹${amt} khup vel baki ahe.\nAajach payment kara.`,
+  },
+  Tamil: {
+    SEND:     (name, inv, amt) => `Vanakkam ${name}! 🙏\nInvoice #${inv} worth ₹${amt} innuma pending aaga irukku.\nTayavu seithu payment pannunga. Nandri!`,
+    ESCALATE: (name, inv, amt) => `${name} avargale, ithu miga avasaram! ⚠️\nInvoice #${inv} worth ₹${amt} romba naala overdue aaga irukku.\nUdanadi payment pannunga.`,
+  },
+};
+
+const getFallback = (customerName, invoiceNumber, amount, decision, language) => {
+  const lang = FALLBACK_MESSAGES[language] || FALLBACK_MESSAGES['Hinglish'];
+  const decisionKey = decision === 'ESCALATE' ? 'ESCALATE' : 'SEND';
+  const fn = lang[decisionKey];
+  return fn(customerName, invoiceNumber, `${Number(amount).toLocaleString('en-IN')}`);
+};
+
 const generateReminderMessage = ({ customerName, businessName, invoiceNumber, amount, daysOverdue, decision, language = 'Hinglish' }) => {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) return reject(new Error('GEMINI_API_KEY not set'));
+
+    if (!apiKey) {
+      console.warn('[Gemini] GEMINI_API_KEY is not set — using fallback message');
+      return resolve(getFallback(customerName, invoiceNumber, amount, decision, language));
+    }
 
     const tone = decision === 'ESCALATE'
       ? 'firm and urgent — the customer is significantly late, emphasize urgency without being rude'
@@ -28,7 +63,7 @@ Write a short reminder message for the following situation:
 
 Customer: ${customerName} (${businessName || customerName})
 Invoice #: ${invoiceNumber}
-Amount due: ₹${amount.toLocaleString('en-IN')}
+Amount due: ₹${Number(amount).toLocaleString('en-IN')}
 ${overdueText}
 Tone: ${tone}
 Language: ${langInstruction}
@@ -40,6 +75,7 @@ Rules:
 - End with a short polite closing
 - Output ONLY the message, no explanation`;
 
+    // Exact body format required by Gemini REST API
     const body = JSON.stringify({
       contents: [{ parts: [{ text: prompt }] }],
       generationConfig: { temperature: 0.75, maxOutputTokens: 220 },
@@ -56,21 +92,47 @@ Rules:
     };
 
     const req = https.request(options, (res) => {
-      let data = '';
-      res.on('data', (chunk) => { data += chunk; });
+      let raw = '';
+      res.on('data', (chunk) => { raw += chunk; });
       res.on('end', () => {
+        console.log(`[Gemini] HTTP ${res.statusCode} — raw response:`, raw);
+
         try {
-          const parsed = JSON.parse(data);
+          const parsed = JSON.parse(raw);
+
+          // Surface any API-level error (wrong key, quota exceeded, etc.)
+          if (parsed.error) {
+            console.error('[Gemini] API error:', JSON.stringify(parsed.error));
+            return resolve(getFallback(customerName, invoiceNumber, amount, decision, language));
+          }
+
+          // Extract text from the expected path
           const text = parsed?.candidates?.[0]?.content?.parts?.[0]?.text;
-          if (!text) return reject(new Error('Empty response from Gemini'));
+
+          if (!text) {
+            console.warn('[Gemini] Empty candidates — full response:', JSON.stringify(parsed, null, 2));
+            return resolve(getFallback(customerName, invoiceNumber, amount, decision, language));
+          }
+
           resolve(text.trim());
-        } catch {
-          reject(new Error('Failed to parse Gemini response'));
+        } catch (parseErr) {
+          console.error('[Gemini] JSON parse failed:', parseErr.message, '— raw:', raw);
+          resolve(getFallback(customerName, invoiceNumber, amount, decision, language));
         }
       });
     });
 
-    req.on('error', reject);
+    req.on('error', (err) => {
+      console.error('[Gemini] Network error:', err.message);
+      resolve(getFallback(customerName, invoiceNumber, amount, decision, language));
+    });
+
+    req.setTimeout(10000, () => {
+      console.warn('[Gemini] Request timed out after 10s — using fallback');
+      req.destroy();
+      resolve(getFallback(customerName, invoiceNumber, amount, decision, language));
+    });
+
     req.write(body);
     req.end();
   });

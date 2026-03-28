@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { Outlet, Navigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import { useAuth, useTrackOnRouteChange } from '../context/AuthContext';
 import Sidebar from './Sidebar';
 
 export default function Layout() {
   const { user } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  useTrackOnRouteChange(); // ping /api/auth/activity on every route change
 
   if (!user) return <Navigate to="/login" replace />;
 
