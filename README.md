@@ -85,6 +85,12 @@ JWT_SECRET=your_long_random_secret
 GEMINI_API_KEY=your_gemini_api_key
 PORT=5000
 
+# Production (Render): your Vercel site URL(s), comma-separated — required for browser API calls
+CLIENT_ORIGIN=https://your-app.vercel.app
+
+# Optional — allow any https://*.vercel.app (preview deploys). Use with care.
+# ALLOW_VERCEL_PREVIEWS=true
+
 # Optional — email (omit to skip sending)
 EMAIL_USER=your_email@gmail.com
 EMAIL_PASS=your_gmail_app_password
@@ -93,7 +99,7 @@ EMAIL_PASS=your_gmail_app_password
 UPI_ID=your_upi@bank
 ```
 
-The API enables **CORS** for `http://localhost:5173`. The Vite dev server **proxies** `/api` to `http://localhost:5000` (see `client/vite.config.js`).
+The API enables **CORS** for `http://localhost:5173` by default. In production, set **`CLIENT_ORIGIN`** to your Vercel URL(s), comma-separated (see [Deployment](#deployment)). The Vite dev server **proxies** `/api` to `http://localhost:5000` when **`VITE_API_URL`** is unset (see `client/vite.config.js`). For a production build, set **`VITE_API_URL`** to your Render API origin (no `/api` suffix).
 
 ### 3. Seed demo data
 
@@ -218,6 +224,7 @@ smart-invoicing-assistant/
 │   │   ├── services/api.js      # Axios client + API helpers
 │   │   └── index.css
 │   ├── vite.config.js           # Dev server + /api proxy
+│   ├── vercel.json              # SPA rewrites for production
 │   └── package.json
 ├── server/
 │   ├── config/db.js
@@ -230,6 +237,7 @@ smart-invoicing-assistant/
 │   ├── server.js                # App entry, cron-style interval
 │   ├── seed.js
 │   └── demoSimulation.js
+├── render.yaml                  # Optional Render Blueprint (API)
 └── README.md
 ```
 

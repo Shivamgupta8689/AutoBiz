@@ -8,8 +8,25 @@ const app = express();
 // Connect to MongoDB
 connectDB();
 
-// Middleware
-app.use(cors({ origin: 'http://localhost:5173', credentials: true }));
+// CORS: local dev default; production set CLIENT_ORIGIN to your Vercel URL(s), comma-separated
+const defaultOrigins = ['http://localhost:5173'];
+const fromEnv = process.env.CLIENT_ORIGIN?.split(',').map((s) => s.trim()).filter(Boolean) || [];
+const allowList = fromEnv.length ? fromEnv : defaultOrigins;
+const allowVercelPreviews = process.env.ALLOW_VERCEL_PREVIEWS === 'true';
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      if (allowList.includes(origin)) return callback(null, true);
+      if (allowVercelPreviews && /^https:\/\/[^/]+\.vercel\.app$/i.test(origin)) {
+        return callback(null, true);
+      }
+      callback(null, false);
+    },
+    credentials: true,
+  })
+);
 app.use(express.json());
 
 // Health check

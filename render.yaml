@@ -1,0 +1,14 @@
+# Render Blueprint — deploy from repo root: smart-invoicing-assistant/
+# Dashboard: New → Blueprint → connect repo, or paste this file.
+# Set secrets in Render: MONGO_URI, JWT_SECRET, GEMINI_API_KEY, CLIENT_ORIGIN, etc.
+
+services:
+  - type: web
+    name: smart-invoicing-api
+    env: node
+    plan: free
+    region: oregon
+    rootDir: server
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
