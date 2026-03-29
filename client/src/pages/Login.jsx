@@ -31,7 +31,7 @@ export default function Login() {
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="w-12 h-12 rounded-2xl bg-indigo-600 flex items-center justify-center text-lg font-bold mx-auto mb-4">SI</div>
+          <div className="w-12 h-12 rounded-2xl bg-indigo-600 flex items-center justify-center text-lg font-bold mx-auto mb-4">AB</div>
           <h1 className="text-2xl font-bold text-white">Welcome back</h1>
           <p className="text-gray-500 text-sm mt-1">Sign in to Smart Invoicing</p>
         </div>
