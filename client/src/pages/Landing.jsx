@@ -193,10 +193,12 @@ export default function Landing() {
       <header className="sticky top-0 z-50 border-b border-white/5 bg-[#050508]/80 px-4 backdrop-blur-xl sm:px-8">
         <div className="mx-auto flex max-w-6xl items-center justify-between py-4">
           <Link to="/" className="flex items-center gap-2.5">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-500 to-violet-600 text-sm font-bold shadow-lg shadow-cyan-500/20">
-              SI
-            </div>
-            <span className="font-semibold tracking-tight text-white">Smart Invoicing</span>
+            <span className="flex min-w-0 flex-col">
+                  <span className="truncate text-sm font-bold tracking-tight text-biz-navy dark:text-white">AutoBiz</span>
+                  <span className="hidden truncate text-[10px] font-medium uppercase tracking-wider text-biz-muted dark:text-slate-400 sm:block">
+                    Smart Invoicing
+                  </span>
+                </span>
           </Link>
           <div className="flex items-center gap-2 sm:gap-3">
             {user ? (
